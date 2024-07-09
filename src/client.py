@@ -61,14 +61,14 @@ class FederatedClient:
         return Subset(dataset, indices)
 
 
-    def train(self, model: nn.Module, gpu_id: int) -> Dict[str, torch.Tensor]:
+    def train(self, model: torch.nn.Module, gpu_id: int) -> torch.nn.Module:
         device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
         model = model.to(device)
 
         optimizer = torch.optim.SGD(model.parameters(), lr=self.learning_rate)
-        criterion = nn.CrossEntropyLoss()
+        criterion = torch.nn.CrossEntropyLoss()
         
-        dataloader = DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True)
+        dataloader = torch.utils.data.DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True)
 
         model.train()
         for epoch in range(self.local_epochs):
@@ -80,7 +80,7 @@ class FederatedClient:
                 loss.backward()
                 optimizer.step()
 
-        return model.cpu().state_dict()
+        return model.cpu()
 
     def evaluate(self, model: nn.Module, gpu_id: int) -> Tuple[float, int, int]:
         device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")

@@ -1,5 +1,5 @@
+import copy
 import torch
-import torch.nn as nn
 import os
 import torch.multiprocessing as mp
 from src.client import FederatedClient
@@ -18,6 +18,7 @@ class FederatedServer:
         self.client_data_sizes: List[int] = []
         self.checkpoint_dir = checkpoint_dir
         self.num_gpus = num_gpus
+        print(f"Using {self.num_gpus} GPUs for training.")
         os.makedirs(self.checkpoint_dir, exist_ok=True)
 
 
@@ -38,14 +39,14 @@ class FederatedServer:
         self.client_data_sizes.append(len(client.train_dataset))
 
     def aggregate_models(self, client_models: List[Dict[str, torch.Tensor]], 
-                        participated_client_indices: List[int]) -> Dict[str, torch.Tensor]:
+                         participated_client_indices: List[int]) -> Dict[str, torch.Tensor]:
         aggregated_model = self.model.state_dict()
         total_data_size = sum(self.client_data_sizes[i] for i in participated_client_indices)
         
         for key in aggregated_model.keys():
             if aggregated_model[key].dtype == torch.long:
                 stacked_params = torch.stack([client_model[key].to(aggregated_model[key].device) 
-                                            for client_model in client_models], dim=0)
+                                              for client_model in client_models], dim=0)
                 aggregated_model[key] = torch.mode(stacked_params, dim=0).values
             else:
                 weighted_sum = torch.zeros_like(aggregated_model[key])
@@ -84,19 +85,25 @@ class FederatedServer:
 
         return (global_avg_loss, global_accuracy), local_performances
 
-    def train_client(self, client_id: int) -> Dict[str, torch.Tensor]:
-        gpu_id = client_id % self.num_gpus
-        return self.clients[client_id].train(self.model, gpu_id)
+    def load_model(self, model_path: str):
+        self.model.load_state_dict(torch.load(model_path))
+        print(f"Loaded pretrained model from {model_path}")
 
-    def train(self):
+    def train(self, continuous: bool = False):
+        start_round = 0
+        if continuous:
+            # If continuous learning, start from the last round
+            start_round = self.global_rounds
+            self.global_rounds *= 2  # Double the number of rounds for continuous learning
+        
         mp.set_start_method('spawn', force=True)
-        for round in range(self.global_rounds):
-            print(f"Global Round {round + 1}/{self.global_rounds}")
+        for round in range(start_round, self.global_rounds):
+            print(f"{'Continuous ' if continuous else ''}Global Round {round + 1}/{self.global_rounds}")
             
-            participated_client_indices = list(range(len(self.clients)))
+            participated_client_indices = self.select_clients()
             
             # Parallel training of clients
-            with mp.Pool(processes=self.num_gpus) as pool:
+            with mp.Pool(processes=len(participated_client_indices)) as pool:
                 client_models = pool.map(self.train_client, participated_client_indices)
 
             aggregated_model = self.aggregate_models(client_models, participated_client_indices)
@@ -104,27 +111,37 @@ class FederatedServer:
 
             self.save_checkpoint(round + 1)
 
-            (global_loss, global_accuracy), local_performances = self.evaluate_model()
+            global_performance, local_performances = self.evaluate_model()
             
-            print(f"Global Performance - Loss: {global_loss:.4f}, Accuracy: {global_accuracy:.4f}")
-            for i, (loss, accuracy) in enumerate(local_performances):
-                print(f"Client {i} - Loss: {loss:.4f}, Accuracy: {accuracy:.4f}")
+            self.log_performance(round + 1, global_performance, local_performances)
 
-            self.save_performance_metrics(round + 1, global_loss, global_accuracy, local_performances)
+        print(f"{'Continuous ' if continuous else ''}Federated Learning completed.")
 
-        print("Federated Learning completed.")
-    def save_performance_metrics(self, round: int, global_loss: float, global_accuracy: float, 
-                                 local_performances: List[Tuple[float, float]]):
+    def select_clients(self):
+        # Implement client selection strategy here
+        # For now, we'll use all clients
+        return list(range(len(self.clients)))
+    
+    def train_client(self, client_idx: int):
+        gpu_id = client_idx % self.num_gpus
+        client_model = self.clients[client_idx].train(copy.deepcopy(self.model), gpu_id)
+        return client_model.state_dict()
+
+    def log_performance(self, round, global_performance, local_performances):
+        print(f"Global Performance - Loss: {global_performance[0]:.4f}, Accuracy: {global_performance[1]:.4f}")
+        for i, (loss, accuracy) in enumerate(local_performances):
+            print(f"Client {i} - Loss: {loss:.4f}, Accuracy: {accuracy:.4f}")
+        
+        # Save performance metrics to a file
+        metrics_path = os.path.join(self.checkpoint_dir, f'performance_metrics_round_{round}.json')
         metrics = {
             "round": round,
-            "global_loss": global_loss,
-            "global_accuracy": global_accuracy,
+            "global_loss": global_performance[0],
+            "global_accuracy": global_performance[1],
             "local_performances": [
                 {"client": i, "loss": loss, "accuracy": acc}
                 for i, (loss, acc) in enumerate(local_performances)
             ]
         }
-        metrics_path = os.path.join(self.checkpoint_dir, f'performance_metrics_round_{round}.json')
         with open(metrics_path, 'w') as f:
             json.dump(metrics, f, indent=2)
-        print(f"Performance metrics saved: {metrics_path}")
