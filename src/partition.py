@@ -29,26 +29,49 @@ def dirichlet_partition(data: Dataset, num_clients: int, alpha: float, train: bo
     
     for c, fracs in zip(class_idxs, label_distribution):
         for i, idx in enumerate(np.split(c, (np.cumsum(fracs)[:-1] * len(c)).astype(int))):
-            client_idxs[i] += [idx]
+            client_idxs[i] += list(idx)
 
-    client_idxs = [np.concatenate(idxs) for idxs in client_idxs]
-    
     # Adjust volumes based on volume_distribution
     total_size = sum(len(idxs) for idxs in client_idxs)
-    target_sizes = (volume_distribution * total_size).astype(int)
+    target_sizes = np.maximum((volume_distribution * total_size).astype(int), 100) 
     
-    for i in range(num_clients):
-        if len(client_idxs[i]) > target_sizes[i]:
-            client_idxs[i] = np.random.choice(client_idxs[i], target_sizes[i], replace=False)
-        elif len(client_idxs[i]) < target_sizes[i]:
-            extra = np.random.choice(np.concatenate(client_idxs[:i] + client_idxs[i+1:]), 
-                                     target_sizes[i] - len(client_idxs[i]), replace=False)
-            client_idxs[i] = np.concatenate([client_idxs[i], extra])
+    all_idxs = set(range(len(data)))
+    final_client_idxs = []
 
-    client_data = [Subset(data, idxs) for idxs in client_idxs]
+    for i, idxs in enumerate(client_idxs):
+        if len(idxs) > target_sizes[i]:
+            selected = np.random.choice(idxs, target_sizes[i], replace=False)
+        else:
+            selected = idxs
+            remaining = target_sizes[i] - len(selected)
+            if remaining > 0:
+                available = list(all_idxs - set(selected))
+                if remaining <= len(available):
+                    extra = np.random.choice(available, remaining, replace=False)
+                    selected = np.concatenate([selected, extra])
+                else:
+                    selected = np.concatenate([selected, available])
+        
+        final_client_idxs.append(selected)
+        all_idxs -= set(selected)
+
+    for i, idxs in enumerate(final_client_idxs):
+        if len(idxs) == 0:
+            if len(all_idxs) > 0:
+                idx = np.random.choice(list(all_idxs))
+                final_client_idxs[i] = np.array([idx])
+                all_idxs.remove(idx)
+            else:
+                # If no indices are left, take one from the client with the most samples
+                max_client = max(range(len(final_client_idxs)), key=lambda i: len(final_client_idxs[i]))
+                idx = np.random.choice(final_client_idxs[max_client])
+                final_client_idxs[i] = np.array([idx])
+                final_client_idxs[max_client] = np.setdiff1d(final_client_idxs[max_client], [idx])
+
+    client_data = [Subset(data, idxs) for idxs in final_client_idxs]
     
-    return client_data, client_idxs
-
+    return client_data, final_client_idxs
+    
 def partition_data(dataset_name: str, num_clients: int, alpha: float, data_path: str = './data') -> Dict[str, Tuple[List[Subset], List[np.ndarray]]]:
     """
     Partition a dataset for federated learning.
