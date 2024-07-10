@@ -33,23 +33,40 @@ def get_label_distribution(indices, labels):
 
 def calculate_wasserstein_distances(dataset_name, num_clients, alpha, removed_clients, labels):
     remaining_clients = [i for i in range(num_clients) if i not in removed_clients]
-    
+    total_samples = 0 
+    weights = np.zeros(num_clients)
+    distributions = np.zeros((num_clients, len(set(labels))))
     # Calculate label distribution for removed clients
     removed_distribution = np.zeros_like(get_label_distribution(load_partition_indices(dataset_name, num_clients, alpha, removed_clients[0]), labels))
     for rc in removed_clients:
         rc_indices = load_partition_indices(dataset_name, num_clients, alpha, rc)
-        removed_distribution += get_label_distribution(rc_indices, labels)
-    removed_distribution /= len(removed_clients)
+        total_samples += len(rc_indices)
+        weights[rc] = len(rc_indices)
+        distributions[rc] = get_label_distribution(rc_indices, labels)
+    # weights * removed_distribution
+    removed_samples = np.sum(weights[removed_clients])
+    removed_distribution = np.average(distributions, axis=0, weights=weights/removed_samples)
     
     # Calculate Wasserstein distance for each remaining client
     distances = {}
     for client in remaining_clients:
         client_indices = load_partition_indices(dataset_name, num_clients, alpha, client)
+        total_samples   += len(client_indices)
+        
+        weights[client] = len(client_indices)
         client_distribution = get_label_distribution(client_indices, labels)
+        
+        distributions[client] = client_distribution
+        
         distance = wasserstein_distance(client_distribution, removed_distribution)
         distances[client] = distance
+        
+    original_distribution = np.average(distributions, axis=0, weights= weights/total_samples)
+    remain_distribution = np.average(distributions[remaining_clients], axis=0, weights=weights[remaining_clients]/(total_samples-removed_samples))
+    H_O = wasserstein_distance(original_distribution, removed_distribution)
+    H_N = wasserstein_distance(remain_distribution, removed_distribution)
     
-    return distances
+    return distances, weights.tolist(), H_O, H_N
 
 
 def calculate_gradient_heterogeneity(
@@ -111,7 +128,7 @@ def main(args):
     # Load all labels
     all_labels = load_all_labels(dataset_name)
 
-    distances = calculate_wasserstein_distances(dataset_name, num_clients, alpha, removed_clients, all_labels)
+    distances, weights, H_O, H_N = calculate_wasserstein_distances(dataset_name, num_clients, alpha, removed_clients, all_labels)
 
     # Save results
     results = {
@@ -119,7 +136,10 @@ def main(args):
         'num_clients': num_clients,
         'alpha': alpha,
         'removed_clients': removed_clients,
-        'wasserstein_distances': distances
+        'wasserstein_distances': distances,
+        'weights': weights,
+        'H_O': H_O,
+        'H_N': H_N
     }
 
     with open(f'partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/wasserstein_distances_{dataset_name}_alpha{alpha}.json', 'w') as f:

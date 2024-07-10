@@ -129,19 +129,23 @@ class FederatedServer:
 
     def log_performance(self, round, global_performance, local_performances):
         print(f"Global Performance - Loss: {global_performance[0]:.4f}, Accuracy: {global_performance[1]:.4f}")
-        for i, (loss, accuracy) in enumerate(local_performances):
-            print(f"Client {i} - Loss: {loss:.4f}, Accuracy: {accuracy:.4f}")
-        
+        local_performances_dict = []
+        for idx, client in enumerate(self.clients):
+            print(f"Client {client.id} - Loss: {local_performances[idx][0]:.4f}, Accuracy: {local_performances[idx][1]:.4f}")
+            local_performances_dict.append({
+                "client": client.id,
+                "loss": local_performances[idx][0],
+                "accuracy": local_performances[idx][1]
+            })
+       
         # Save performance metrics to a file
         metrics_path = os.path.join(self.checkpoint_dir, f'performance_metrics_round_{round}.json')
+
         metrics = {
             "round": round,
             "global_loss": global_performance[0],
             "global_accuracy": global_performance[1],
-            "local_performances": [
-                {"client": i, "loss": loss, "accuracy": acc}
-                for i, (loss, acc) in enumerate(local_performances)
-            ]
+            "local_performances": local_performances_dict
         }
         with open(metrics_path, 'w') as f:
             json.dump(metrics, f, indent=2)
