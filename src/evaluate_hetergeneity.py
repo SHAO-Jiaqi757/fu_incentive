@@ -142,7 +142,7 @@ def main(args):
         'H_N': H_N
     }
 
-    with open(f'partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/wasserstein_distances_{dataset_name}_alpha{alpha}.json', 'w') as f:
+    with open(f'partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/statistics.json', 'w') as f:
         json.dump(results, f, indent=2)
 
     print("Wasserstein distances calculated and saved.")
