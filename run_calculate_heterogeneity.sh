@@ -24,6 +24,8 @@ run_hetero_calculation() {
 
 }
 
+
+
 # Create a directory for all experiments
 mkdir -p experiments
 
@@ -45,3 +47,4 @@ run_hetero_calculation cifar10 10 0.8 "0,1,2"
 
 run_hetero_calculation mnist 10 1.0 "0,1,2"
 run_hetero_calculation cifar10 10 1.0 "0,1,2"
+

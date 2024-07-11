@@ -10,8 +10,8 @@ import json
 
 def main(args):
     # Create a unique identifier for this experiment
-    timestamp = time.strftime("%Y%m%d-%H%M%S")
-    exp_name = f"{args.model}_{args.dataset}_clients{args.num_clients}_alpha{args.alpha}_{timestamp}"
+    # timestamp = time.strftime("%Y%m%d-%H%M%S")
+    exp_name = f"{args.model}_{args.dataset}_clients{args.num_clients}_alpha{args.alpha}"
 
     if args.unlearn:
         exp_name += "_unlearn"

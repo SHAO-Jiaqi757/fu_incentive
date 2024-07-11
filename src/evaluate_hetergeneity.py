@@ -66,7 +66,7 @@ def calculate_wasserstein_distances(dataset_name, num_clients, alpha, removed_cl
     H_O = wasserstein_distance(original_distribution, removed_distribution)
     H_N = wasserstein_distance(remain_distribution, removed_distribution)
     
-    return distances, weights.tolist(), H_O, H_N
+    return distances, (weights/total_samples).tolist(), H_O, H_N
 
 
 def calculate_gradient_heterogeneity(
