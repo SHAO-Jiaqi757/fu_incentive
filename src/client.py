@@ -30,6 +30,13 @@ class FederatedClient:
         self.data_path = data_path
 
         self.train_dataset, self.test_dataset = self.load_dataset(train=True), self.load_dataset(train=False)
+        
+        self.participation_level = 1.0
+
+    def set_participation_level(self, participation_level: float):
+        self.participation_level = participation_level
+        self.train_dataset.indices = self.train_dataset.indices[:int(len(self.train_dataset) * participation_level)]
+        print(f"Client {self.client_id} participation level: {participation_level}, train set size: {len(self.train_dataset) * participation_level} (len(self.train_dataset))")
 
     def load_dataset(self, train: bool) -> Subset:
         # Load the full dataset

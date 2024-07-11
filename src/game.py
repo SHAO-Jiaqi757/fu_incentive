@@ -113,7 +113,7 @@ def main(args):
     num_clients = args.num_clients
     alpha = args.alpha
     
-    with open(f'partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/wasserstein_distances_{dataset_name}_alpha{alpha}.json', 'r') as f:
+    with open(f'partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/statistics.json', 'r') as f:
         results = json.load(f)
 
     H_N_bar = results["H_N"]
@@ -139,7 +139,7 @@ def main(args):
 
 
     np.random.seed(42) 
-    costs = np.random.uniform(0.5, 1.5, N)
+    costs = weights * 10 # Costs are proportional to weights
     clients = [
         Client(i, weights[i], Hs[i], costs[i], l_q, lambda_q)
         for i in range(N)
@@ -167,7 +167,7 @@ def main(args):
     fu_clients = []
     for i, x in enumerate(optimal_x):
         print(f"Client {i}: {x:.4f}")
-        if x > 0:
+        if x > 0.1:
             fu_clients.append(idx_hash_client[i])
 
     print(f"\nFinal utility: {server.utility(optimal_p):.4f}")
@@ -197,7 +197,7 @@ def main(args):
     }
     print("results", results)
     # save results
-    with open(f'partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/wasserstein_distances_{dataset_name}_alpha{alpha}.json', 'w') as f:
+    with open(f'partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/statistics.json', 'w') as f:
         json.dump(results, f, indent=2)
         
 

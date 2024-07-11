@@ -98,15 +98,6 @@ def compare_metrics(all_results, exp_key, exp_type, baseline_metrics, comparison
             all_results['Local Loss Diffs'].append(str(local_loss_diffs))
             all_results['Local Accuracy Diffs'].append(str(local_acc_diffs))
 
-    # # Add Wasserstein distance if available
-    # wasserstein_file = os.path.join(os.path.dirname(comparison_metrics[0]['local_performances'][0]), 'wasserstein_distances.json')
-    # if os.path.exists(wasserstein_file):
-    #     with open(wasserstein_file, 'r') as f:
-    #         wasserstein_data = json.load(f)
-    #     avg_wasserstein = sum(wasserstein_data.values()) / len(wasserstein_data)
-    #     all_results['Avg Wasserstein Distance'].append(avg_wasserstein)
-    # else:
-    #     all_results['Avg Wasserstein Distance'].append(None)
 
 # Usage
 save_comparative_results_to_excel()
