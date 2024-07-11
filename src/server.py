@@ -131,9 +131,9 @@ class FederatedServer:
         print(f"Global Performance - Loss: {global_performance[0]:.4f}, Accuracy: {global_performance[1]:.4f}")
         local_performances_dict = []
         for idx, client in enumerate(self.clients):
-            print(f"Client {client.id} - Loss: {local_performances[idx][0]:.4f}, Accuracy: {local_performances[idx][1]:.4f}")
+            print(f"Client {client.client_id} - Loss: {local_performances[idx][0]:.4f}, Accuracy: {local_performances[idx][1]:.4f}")
             local_performances_dict.append({
-                "client": client.id,
+                "client": client.client_id,
                 "loss": local_performances[idx][0],
                 "accuracy": local_performances[idx][1]
             })
