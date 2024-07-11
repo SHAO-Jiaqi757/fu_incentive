@@ -1,4 +1,5 @@
 import argparse
+from typing import List
 from src.models import *
 from src.server import FederatedServer
 from src.client import FederatedClient
@@ -12,7 +13,12 @@ def main(args):
     # Create a unique identifier for this experiment
     # timestamp = time.strftime("%Y%m%d-%H%M%S")
     exp_name = f"{args.model}_{args.dataset}_clients{args.num_clients}_alpha{args.alpha}"
-
+    fl_exp_dir = os.path.join("experiments", exp_name)
+    fl_config_path = os.path.join(fl_exp_dir, "config.json")
+    fl_config = json.load(open(fl_config_path, "r")) if os.path.exists(fl_config_path) else {}  
+    fl_g_round = fl_config["global_rounds"]
+    pretrained_model_path = os.path.join(fl_exp_dir, f"global_model_round_{fl_g_round}.pth")
+    
     if args.unlearn:
         exp_name += "_unlearn"
         if args.retrain:
@@ -42,6 +48,7 @@ def main(args):
     clients = initialize_clients(args, model_config)
 
     if args.unlearn:
+
         # Remove specified clients
         removed_clients = [int(c) for c in args.removed_clients.split(",")]
         remaining_clients = [c for c in clients if c.client_id not in removed_clients]
@@ -53,14 +60,24 @@ def main(args):
             server.train(continuous=False)
         elif args.continuous:
             # Load pretrained model
-            pretrained_model_path = args.pretrained_model
             server.load_model(pretrained_model_path)
+            
+            # client strategies
+            statistics_path = os.path.join(partition_dir, "statistics.json")
+            statistics = json.load(open(statistics_path, "r"))
+            client_strategies = statistics["game_results"]["optimal_strategies"]
+            fu_clients = statistics["game_results"]["fu_clients"] 
             # Continuous learning on specified clients
             continuous_clients = [
-                clients[i] for i in range(args.num_clients) if i not in removed_clients
+                clients[i] for i in fu_clients
             ]
-            for client in continuous_clients[: args.continuous_clients]:
-                server.add_client(client)
+            for idx, client in enumerate(remaining_clients):
+                if client.client_id in fu_clients:
+                    client.set_participation_level(client_strategies[idx])
+                    server.add_client(client)
+                
+                
+            print(f"Continuous learning on {len(continuous_clients)} clients, fu_clients: {server.clients}")
             server.train(continuous=True)
     else:
         # Regular federated learning
@@ -88,7 +105,7 @@ def get_model_config(args):
         raise ValueError(f"Unsupported model type: {args.model}")
 
 
-def initialize_clients(args, model_config):
+def initialize_clients(args, model_config) -> List[FederatedClient]:
     return [
         FederatedClient(
             client_id=i,
