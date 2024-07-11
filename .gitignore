@@ -3,3 +3,4 @@ checkpoints
 data
 partitions
 __pycache__
+*.txt

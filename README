@@ -1,0 +1,26 @@
+## FL Training
+```bash
+sh ./run_fl.sh
+```
+
+## Compute heterogeneity
+```bash
+sh ./run_calculate_heterogeneity.sh
+```
+
+## Retrain for unlearning
+```bash
+sh ./run_retrain.sh
+```
+
+
+## Game for unlearning
+### Client decision
+```bash
+sh ./run_game.sh
+```
+
+### FU process
+
+
+
