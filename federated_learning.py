@@ -15,9 +15,10 @@ def main(args):
     exp_name = f"{args.model}_{args.dataset}_clients{args.num_clients}_alpha{args.alpha}"
     fl_exp_dir = os.path.join("experiments", exp_name)
     fl_config_path = os.path.join(fl_exp_dir, "config.json")
-    fl_config = json.load(open(fl_config_path, "r")) if os.path.exists(fl_config_path) else {}  
-    fl_g_round = fl_config["global_rounds"]
-    pretrained_model_path = os.path.join(fl_exp_dir, f"global_model_round_{fl_g_round}.pth")
+    if os.path.exists(fl_config_path): 
+        fl_config = json.load(open(fl_config_path, "r"))
+        fl_g_round = fl_config["global_rounds"]
+        pretrained_model_path = os.path.join(fl_exp_dir, f"global_model_round_{fl_g_round}.pth")
     
     if args.unlearn:
         exp_name += "_unlearn"
@@ -90,19 +91,31 @@ def main(args):
 
 
 def get_model_config(args):
-    if args.model == "cnn":
-        return {"type": "cnn", "num_classes": 10}
-    elif args.model == "mlp":
-        return {
-            "type": "mlp",
-            "input_dim": 784 if args.dataset == "mnist" else 3072,
-            "hidden_dim": args.hidden_dim,
-            "num_classes": 10,
+    if args.model == 'cnn':
+        model_config = {
+            'type': 'cnn',
+            'num_classes': 10 if args.dataset in ['mnist', 'cifar10'] else 100 if args.dataset == 'cifar100' else 4
         }
-    elif args.model == "resnet":
-        return {"type": "resnet", "num_classes": 10}
+    elif args.model == 'mlp':
+        model_config = {
+            'type': 'mlp',
+            'input_dim': 784 if args.dataset == 'mnist' else 3072 if args.dataset == 'cifar10' else 3072 if args.dataset == 'cifar100' else 768,
+            'hidden_dim': args.hidden_dim,
+            'num_classes': 10 if args.dataset in ['mnist', 'cifar10'] else 100 if args.dataset == 'cifar100' else 4
+        }
+    elif args.model == 'resnet':
+        model_config = {
+            'type': 'resnet',
+            'num_classes': 10 if args.dataset == 'cifar10' else 100 if args.dataset == 'cifar100' else 4
+        }
+    elif args.model == 'bert':
+        model_config = {
+            'type': 'bert',
+            'num_classes': 4  # AG News has 4 classes
+        }
     else:
         raise ValueError(f"Unsupported model type: {args.model}")
+    return model_config
 
 
 def initialize_clients(args, model_config) -> List[FederatedClient]:
@@ -132,14 +145,14 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         type=str,
-        choices=["cnn", "mlp", "resnet"],
+        choices=['cnn', 'mlp', 'resnet', 'bert'],
         required=True,
         help="Model architecture",
     )
     parser.add_argument(
         "--dataset",
         type=str,
-        choices=["mnist", "cifar10"],
+        choices=['mnist', 'cifar10', 'cifar100', 'ag_news'],
         required=True,
         help="Dataset to use",
     )

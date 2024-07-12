@@ -12,9 +12,39 @@ import torch.multiprocessing as mp
 import os
 import json
 from typing import List, Tuple, Dict
-from torch.utils.data import DataLoader
 from torch.nn.parallel import DataParallel
+from src.models import *
+from torchvision import datasets, transforms
+from torch.utils.data import Dataset, DataLoader
+from torchtext.datasets import AG_NEWS
+from transformers import BertTokenizer
 
+class TextDataset(Dataset):
+    def __init__(self, data, tokenizer, max_length=128):
+        self.data = data
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        text, label = self.data[idx]
+        encoding = self.tokenizer.encode_plus(
+            text,
+            add_special_tokens=True,
+            max_length=self.max_length,
+            return_token_type_ids=False,
+            padding='max_length',
+            truncation=True,
+            return_attention_mask=True,
+            return_tensors='pt',
+        )
+        return {
+            'input_ids': encoding['input_ids'].flatten(),
+            'attention_mask': encoding['attention_mask'].flatten(),
+            'labels': torch.tensor(label-1, dtype=torch.long)
+        }
 
 class FederatedClient:
     def __init__(self, client_id: int, dataset_name: str, model_config: Dict, num_clients: int, alpha: float, 
@@ -52,8 +82,20 @@ class FederatedClient:
                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ])
             dataset = datasets.CIFAR10(self.data_path, train=train, download=True, transform=transform)
+        elif self.dataset_name == 'cifar100':
+            transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
+            ])
+            dataset = datasets.CIFAR100(self.data_path, train=train, download=True, transform=transform)
+        elif self.dataset_name == 'ag_news':
+            tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+            train_iter, test_iter = AG_NEWS(root=self.data_path, split=('train', 'test'))
+            if train:
+                dataset = TextDataset(list(train_iter), tokenizer)
+            else: dataset = TextDataset(list(test_iter), tokenizer)
         else:
-            raise ValueError("Unsupported dataset. Choose 'mnist' or 'cifar10'.")
+            raise ValueError(f"Unsupported dataset: {self.dataset_name}")
 
         # Load the partition indices
         partition_dir = f"partitions/partition_indices_{self.dataset_name}_clients{self.num_clients}_alpha{self.alpha}"
@@ -71,19 +113,31 @@ class FederatedClient:
     def train(self, model: torch.nn.Module, gpu_id: int) -> torch.nn.Module:
         device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
         model = model.to(device)
-
-        optimizer = torch.optim.SGD(model.parameters(), lr=self.learning_rate)
-        criterion = torch.nn.CrossEntropyLoss()
+        
+        if isinstance(model, BertClassifier):
+            optimizer = torch.optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=self.learning_rate, eps=1e-8)
+        else:
+            optimizer = torch.optim.SGD(model.parameters(), lr=self.learning_rate)
+        criterion = nn.CrossEntropyLoss()
         
         dataloader = torch.utils.data.DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True)
 
-        model.train()
+        model.train()   
+        
         for epoch in range(self.local_epochs):
-            for batch_idx, (data, target) in enumerate(dataloader):
-                data, target = data.to(device), target.to(device)
+            for batch in dataloader:
+                if isinstance(model, BertClassifier):
+                    input_ids = batch['input_ids'].to(device)
+                    attention_mask = batch['attention_mask'].to(device)
+                    labels = batch['labels'].to(device)
+                    outputs = model(input_ids, attention_mask)
+                else:
+                    data, labels = batch
+                    data, labels = data.to(device), labels.to(device)
+                    outputs = model(data)
+
+                loss = criterion(outputs, labels)
                 optimizer.zero_grad()
-                output = model(data)
-                loss = criterion(output, target)
                 loss.backward()
                 optimizer.step()
 
@@ -98,13 +152,20 @@ class FederatedClient:
         correct = 0
         criterion = nn.CrossEntropyLoss(reduction='sum')
         dataloader = DataLoader(self.test_dataset, batch_size=self.batch_size, shuffle=False)
-
         with torch.no_grad():
-            for data, target in dataloader:
-                data, target = data.to(device), target.to(device)
-                output = model(data)
-                test_loss += criterion(output, target).item()
-                pred = output.argmax(dim=1, keepdim=True)
-                correct += pred.eq(target.view_as(pred)).sum().item()
+            for batch in dataloader:
+                if isinstance(model, BertClassifier):
+                    input_ids = batch['input_ids'].to(device)
+                    attention_mask = batch['attention_mask'].to(device)
+                    labels = batch['labels'].to(device)
+                    outputs = model(input_ids, attention_mask)
+                else:
+                    data, labels = batch
+                    data, labels = data.to(device), labels.to(device)
+                    outputs = model(data)
+
+                test_loss += criterion(outputs, labels).item()
+                pred = outputs.argmax(dim=1, keepdim=True)
+                correct += pred.eq(labels.view_as(pred)).sum().item()
 
         return test_loss, correct, len(self.test_dataset)

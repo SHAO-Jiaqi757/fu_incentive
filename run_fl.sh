@@ -10,8 +10,8 @@ run_fl() {
     local_epochs=$7
     learning_rate=$8
     hidden_dim=$9
-
-    echo "$(date): Starting experiment: Model=$model, Dataset=$dataset, Clients=$num_clients, Alpha=$alpha"
+    log_file=$10
+    echo "$(date): Starting experiment: Model=$model, Dataset=$dataset, Clients=$num_clients, Alpha=$alpha" >> "$log_file"
     
     python federated_learning.py \
         --model $model \
@@ -22,54 +22,54 @@ run_fl() {
         --batch_size $batch_size \
         --local_epochs $local_epochs \
         --learning_rate $learning_rate \
-        --hidden_dim $hidden_dim
+        --hidden_dim $hidden_dim >> "$log_file" 2>&1
     
-    if [ $? -eq 0 ]; then
-        echo "$(date): Experiment completed successfully"
+    exit_code=$?
+    if [ $exit_code -eq 0 ]; then
+        echo "$(date): Experiment completed successfully" >> "$log_file"
     else
-        echo "$(date): Experiment failed with error code $?"
+        echo "$(date): Experiment failed with error code $exit_code" >> "$log_file"
     fi
-    echo "---------------------"
-
-    # Wait for 30 seconds to allow GPU memory to clear
-    echo "Waiting for 30 seconds before the next experiment..."
-    sleep 30
+    echo "---------------------" >> "$log_file"
 }
 
 # Create a directory for all experiments
 mkdir -p experiments
 
 # Create a log file
-log_file="experiments/experiment_log.txt"
-exec > >(tee -a "$log_file") 2>&1
+main_log_file="experiments/experiment_log.txt"
 
-echo "$(date): Starting experiments"
+echo "$(date): Starting experiments" | tee -a "$main_log_file"
 
-# Experiment configurations
+# Define experiment configurations
+experiments=(
+    "resnet cifar100 10 0.5 100 32 2 0.01 64"
+    "bert ag_news 10 0.5 50 32 2 2e-5 32"
+    "resnet cifar100 10 0.2 100 32 2 0.01 64"
+    "bert ag_news 10 0.2 50 32 2 2e-5 32"
+    "resnet cifar100 10 0.8 100 32 2 0.01 64"
+    "bert ag_news 10 0.8 50 32 2 2e-5 32"
+    "resnet cifar100 10 1.0 100 32 2 0.01 64"
+    "bert ag_news 10 1.0 50 32 2 2e-5 32"
+)
 
-# # Varying models and datasets
-run_fl cnn mnist 10 0.5 5 32 2 0.01 64
-run_fl mlp mnist 10 0.5 5 32 2 0.01 64
-run_fl resnet cifar10 10 0.5 10 32 2 0.01 64
+# Function to wait for a job slot
+wait_for_job_slot() {
+    while [ $(jobs -r | wc -l) -ge 2 ]; do
+        sleep 5
+    done
+}
 
-# # Varying heterogeneity (alpha)
+# Run experiments
+for exp in "${experiments[@]}"; do
+    wait_for_job_slot
+    log_file="experiments/exp_$(date +%Y%m%d_%H%M%S).log"
+    run_fl $exp "$log_file" &
+    echo "Started experiment: $exp" | tee -a "$main_log_file"
+    sleep 30  # Wait 30 seconds before starting the next experiment
+done
 
-run_fl cnn mnist 10 0.2 5 32 2 0.01 64
-run_fl mlp mnist 10 0.2 5 32 2 0.01 64
-run_fl resnet cifar10 10 0.2 10 32 2 0.01 64
+# Wait for all background jobs to finish
+wait
 
-run_fl cnn mnist 10 0.8 5 32 2 0.01 64
-run_fl mlp mnist 10 0.8 5 32 2 0.01 64
-run_fl resnet cifar10 10 0.8 10 32 2 0.01 64
-
-
-run_fl cnn mnist 10 1.0 5 32 2 0.01 64
-run_fl mlp mnist 10 1.0 5 32 2 0.01 64
-run_fl resnet cifar10 10 1.0 10 32 2 0.01 64
-
-
-
-
-# Add more configurations as needed
-
-echo "$(date): All experiments completed. Results are saved in the 'experiments' directory."
+echo "$(date): All experiments completed. Results are saved in the 'experiments' directory." | tee -a "$main_log_file"

@@ -4,7 +4,35 @@ from torch.utils.data import Dataset, Subset
 from torchvision import datasets, transforms
 from typing import List, Tuple, Dict
 import os
+from torchtext.datasets import AG_NEWS
+from transformers import BertTokenizer
 
+class TextDataset(Dataset):
+    def __init__(self, data, tokenizer, max_length=128):
+        self.data = data
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        text, label = self.data[idx]
+        encoding = self.tokenizer.encode_plus(
+            text,
+            add_special_tokens=True,
+            max_length=self.max_length,
+            return_token_type_ids=False,
+            padding='max_length',
+            truncation=True,
+            return_attention_mask=True,
+            return_tensors='pt',
+        )
+        return {
+            'input_ids': encoding['input_ids'].flatten(),
+            'attention_mask': encoding['attention_mask'].flatten(),
+            'labels': torch.tensor(label - 1, dtype=torch.long)  # AG News labels start from 1
+        }
 def dirichlet_partition(data: Dataset, num_clients: int, alpha: float, train: bool = True) -> Tuple[List[Subset], List[np.ndarray]]:
     """
     Partition the dataset using Dirichlet distribution.
@@ -15,7 +43,10 @@ def dirichlet_partition(data: Dataset, num_clients: int, alpha: float, train: bo
     :param train: Whether this is training data (True) or test data (False)
     :return: List of Subsets for each client and list of data indices for each client
     """
-    labels = np.array(data.targets)
+    if isinstance(data, TextDataset):
+        labels = np.array([item['labels'].item() for item in data])
+    else:
+        labels = np.array(data.targets)
     num_classes = len(np.unique(labels))
     
     # Dirichlet distribution for label distribution
@@ -76,7 +107,7 @@ def partition_data(dataset_name: str, num_clients: int, alpha: float, data_path:
     """
     Partition a dataset for federated learning.
     
-    :param dataset_name: Name of the dataset ('mnist' or 'cifar10')
+    :param dataset_name: Name of the dataset ('mnist' or 'cifar10', 'cifar100', 'ag_news')
     :param num_clients: Number of clients to partition the data for
     :param alpha: Concentration parameter for Dirichlet distribution
     :param data_path: Path to store/load the dataset
@@ -96,8 +127,20 @@ def partition_data(dataset_name: str, num_clients: int, alpha: float, data_path:
         ])
         train_dataset = datasets.CIFAR10(data_path, train=True, download=True, transform=transform)
         test_dataset = datasets.CIFAR10(data_path, train=False, download=True, transform=transform)
+    elif dataset_name.lower() == 'cifar100':
+        transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
+        ])
+        train_dataset = datasets.CIFAR100(data_path, train=True, download=True, transform=transform)
+        test_dataset = datasets.CIFAR100(data_path, train=False, download=True, transform=transform)
+    elif dataset_name.lower() == 'ag_news':
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        train_iter, test_iter = AG_NEWS(root=data_path, split=('train', 'test'))
+        train_dataset = TextDataset(list(train_iter), tokenizer)
+        test_dataset = TextDataset(list(test_iter), tokenizer)
     else:
-        raise ValueError("Unsupported dataset. Choose 'mnist' or 'cifar10'.")
+        raise ValueError("Unsupported dataset. Choose 'mnist', 'cifar10', 'cifar100', or 'ag_news'.")
 
     train_data, train_idxs = dirichlet_partition(train_dataset, num_clients, alpha, train=True)
     test_data, test_idxs = dirichlet_partition(test_dataset, num_clients, alpha, train=False)
@@ -106,6 +149,7 @@ def partition_data(dataset_name: str, num_clients: int, alpha: float, data_path:
         'train': (train_data, train_idxs),
         'test': (test_data, test_idxs)
     }
+
 
 def save_partition_indices(indices: List[np.ndarray], dataset_name: str, num_clients: int, alpha: float, train: bool):
     """
