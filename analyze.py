@@ -1,103 +1,116 @@
+import argparse
 import os
 import json
-import pandas as pd
-from glob import glob
-from collections import defaultdict
+import numpy as np
+from typing import Dict, List, Tuple
 
-def save_comparative_results_to_excel(experiments_dir="experiments", output_file="federated_learning_comparative_results.xlsx"):
-    all_results = defaultdict(list)
-    experiment_sets = defaultdict(dict)
+def load_performance_metrics(exp_dir: str, global_rounds: int) -> Dict:
+    file_path = os.path.join(exp_dir, f"performance_metrics_round_{global_rounds}.json")
+    with open(file_path, 'r') as f:
+        return json.load(f)
 
-    # First pass: Collect all experiments and group them
-    for exp_dir in glob(os.path.join(experiments_dir, "*")):
-        if not os.path.isdir(exp_dir):
-            continue
-        exp_name = os.path.basename(exp_dir)
-        parts = exp_name.split("_")
-        model = parts[0]
-        dataset = parts[1]
-        num_clients = int(parts[2].replace("clients", ""))
-        alpha = float(parts[3].replace("alpha", ""))
-        
-        exp_type = "baseline"
-        if "unlearn" in parts:
-            exp_type = "retrain" if "retrain" in parts else "continuous"
+def load_evaluation_results(exp_dir: str, global_rounds: int) -> Dict:
+    file_path = os.path.join(exp_dir, f"evaluation_results_round_{global_rounds}.json")
+    with open(file_path, 'r') as f:
+        return json.load(f)
 
-        exp_key = (model, dataset, num_clients, alpha)
-        experiment_sets[exp_key][exp_type] = exp_dir
+def calculate_performance_changes(regular_perf: Dict, unlearned_perf: Dict, removed_clients: List[int], retrain_baseline_g_performance: Dict=None) -> Tuple[Dict, Dict]:
+    global_changes = {
+        "loss_change": unlearned_perf["global_performance"]["loss"] - regular_perf["global_loss"],
+        "accuracy_change": unlearned_perf["global_performance"]["accuracy"] - regular_perf["global_accuracy"],
+    }
+    if retrain_baseline_g_performance is not None: 
+        global_changes["unlearn_loss_change"] = unlearned_perf["global_performance"]["loss"] - retrain_baseline_g_performance["loss"]
+        global_changes["unlearn_accuracy_change"] = unlearned_perf["global_performance"]["accuracy"] - retrain_baseline_g_performance["accuracy"]
 
-    # Second pass: Process and compare experiments
-    for exp_key, exps in experiment_sets.items():
-        model, dataset, num_clients, alpha = exp_key
-        baseline_dir = exps.get("baseline")
-        retrain_dir = exps.get("retrain")
-        continuous_dir = exps.get("continuous")
+    local_changes = {}
+    for client_id, unlearned_local_perf in unlearned_perf["local_performances"].items():
+        if int(client_id) not in removed_clients:
+            regular_local_perf = next(p for p in regular_perf["local_performances"] if p["client"] == int(client_id))
+            local_changes[client_id] = {
+                "loss_change": unlearned_local_perf["loss"] - regular_local_perf["loss"],
+                "accuracy_change": unlearned_local_perf["accuracy"] - regular_local_perf["accuracy"]
+            }
 
-        if baseline_dir:
-            baseline_metrics = process_experiment(baseline_dir)
-            
-            if retrain_dir:
-                retrain_metrics = process_experiment(retrain_dir)
-                compare_metrics(all_results, exp_key, "Retrain", baseline_metrics, retrain_metrics)
-            
-            if continuous_dir:
-                continuous_metrics = process_experiment(continuous_dir)
-                compare_metrics(all_results, exp_key, "Continuous", baseline_metrics, continuous_metrics)
+    return global_changes, local_changes
 
-    # Create DataFrame and save to Excel
-    df = pd.DataFrame(all_results)
-    df.to_excel(output_file, index=False)
-    print(f"Comparative results saved to {output_file}")
-
-def process_experiment(exp_dir):
-    metrics_files = sorted(glob(os.path.join(exp_dir, "performance_metrics_round_*.json")))
-    all_metrics = []
-    for file in metrics_files:
-        with open(file, 'r') as f:
-            metrics = json.load(f)
-        all_metrics.append(metrics)
-    return all_metrics
-
-def compare_metrics(all_results, exp_key, exp_type, baseline_metrics, comparison_metrics):
-    model, dataset, num_clients, alpha = exp_key
+def main(args):
+    base_exp_name = f"{args.model}_{args.dataset}_clients{args.num_clients}_alpha{args.alpha}"
+    regular_exp_dir = os.path.join("experiments", base_exp_name)
+    regular_config_path = os.path.join(regular_exp_dir, "config.json")
+    regular_configs = json.load(open(regular_config_path, 'r'))
+     
+    retrain_exp_name = f"{base_exp_name}_unlearn_retrain"
+    retrain_exp_dir = os.path.join("experiments", retrain_exp_name)
+    retrain_config_path = os.path.join(retrain_exp_dir, "config.json")
+    retrain_configs = json.load(open(retrain_config_path, 'r'))
     
-    for i, (baseline, comparison) in enumerate(zip(baseline_metrics, comparison_metrics)):
-        round_num = comparison['round']
-        
-        # Global performance comparison
-        global_loss_diff = comparison['global_loss'] - baseline['global_loss']
-        global_acc_diff = comparison['global_accuracy'] - baseline['global_accuracy']
-        
-        # Local performance comparison
-        baseline_local_perfs = baseline['local_performances']
-        comparison_local_perfs = comparison['local_performances']
-        
-        local_loss_diffs = []
-        local_acc_diffs = []
-        
-        for b_local, c_local in zip(baseline_local_perfs, comparison_local_perfs):
-            local_loss_diffs.append(c_local['loss'] - b_local['loss'])
-            local_acc_diffs.append(c_local['accuracy'] - b_local['accuracy'])
-        
-        avg_local_loss_diff = sum(local_loss_diffs) / len(local_loss_diffs)
-        avg_local_acc_diff = sum(local_acc_diffs) / len(local_acc_diffs)
-        
-        all_results['Model'].append(model)
-        all_results['Dataset'].append(dataset)
-        all_results['Num Clients'].append(num_clients)
-        all_results['Alpha'].append(alpha)
-        all_results['Experiment Type'].append(exp_type)
-        all_results['Round'].append(round_num)
-        all_results['Global Loss Diff'].append(global_loss_diff)
-        all_results['Global Accuracy Diff'].append(global_acc_diff)
-        all_results['Avg Local Loss Diff'].append(avg_local_loss_diff)
-        all_results['Avg Local Accuracy Diff'].append(avg_local_acc_diff)
-        
-        # For retraining, show local performance changes
-        if exp_type == "Retrain":
-            all_results['Local Loss Diffs'].append(str(local_loss_diffs))
-            all_results['Local Accuracy Diffs'].append(str(local_acc_diffs))
+    continuous_exp_name = f"{base_exp_name}_unlearn_continuous"
+    continuous_exp_dir = os.path.join("experiments", continuous_exp_name)
+    continuous_config_path = os.path.join(continuous_exp_dir, "config.json")
+    continuous_configs = json.load(open(continuous_config_path, 'r'))
+    
+
+    # Load performance metrics
+    regular_perf = load_performance_metrics(regular_exp_dir, regular_configs["global_rounds"])
+    retrain_results = load_evaluation_results(retrain_exp_dir, retrain_configs["global_rounds"])
+    continuous_results = load_evaluation_results(continuous_exp_dir, continuous_configs["global_rounds"]*2)
 
 
-# Usage
-save_comparative_results_to_excel()
+    # Calculate performance changes
+    retrain_global_changes, retrain_local_changes = calculate_performance_changes(
+        regular_perf, retrain_results["all_clients"], retrain_configs["removed_clients"].split(','))
+    continuous_global_changes, continuous_local_changes = calculate_performance_changes(
+        regular_perf, continuous_results["all_clients"], continuous_configs["removed_clients"].split(','), retrain_results["all_clients"]["global_performance"])
+
+    # Prepare results
+    analysis_results = {
+        "retrain": {
+            "global_changes": retrain_global_changes,
+            "local_changes": retrain_local_changes
+        },
+        "continuous": {
+            "global_changes": continuous_global_changes,
+            "local_changes": continuous_local_changes
+        }
+    }
+
+    # Calculate average local changes
+    for method in ["retrain", "continuous"]:
+        local_loss_changes = [c["loss_change"] for c in analysis_results[method]["local_changes"].values()]
+        local_accuracy_changes = [c["accuracy_change"] for c in analysis_results[method]["local_changes"].values()]
+        analysis_results[method]["average_local_changes"] = {
+            "loss_change": np.max(local_loss_changes),
+            "accuracy_change": np.min(local_accuracy_changes)
+        }
+
+    # Save analysis results
+    analysis_file = os.path.join("experiments", f"{base_exp_name}_unlearning_analysis.json")
+    with open(analysis_file, 'w') as f:
+        json.dump(analysis_results, f, indent=2)
+
+    print(f"Analysis results saved to {analysis_file}")
+
+    # Print summary
+    print("\nUnlearning Analysis Summary:")
+    for method in ["retrain", "continuous"]:
+        print(f"\n{method.capitalize()} Learning:")
+        print(f"Global Performance Changes:")
+        print(f"  Loss Change: {analysis_results[method]['global_changes']['loss_change']:.4f}")
+        print(f"  Accuracy Change: {analysis_results[method]['global_changes']['accuracy_change']:.4f}")
+        if method == "continuous":
+            print(f"  Unlearned Loss Change: {analysis_results[method]['global_changes']['unlearn_loss_change']:.4f}")
+            print(f"  Unlearned Accuracy Change: {analysis_results[method]['global_changes']['unlearn_accuracy_change']:.4f}")
+        print(f"Average Local Performance Changes for Remaining Clients:")
+        print(f"  Loss Change: {analysis_results[method]['average_local_changes']['loss_change']:.4f}")
+        print(f"  Accuracy Change: {analysis_results[method]['average_local_changes']['accuracy_change']:.4f}")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Federated Learning Unlearning Analysis")
+    parser.add_argument('--model', type=str, required=True, help='Model architecture')
+    parser.add_argument('--dataset', type=str, required=True, help='Dataset used')
+    parser.add_argument('--num_clients', type=int, required=True, help='Number of clients')
+    parser.add_argument('--alpha', type=float, required=True, help='Alpha parameter for Dirichlet distribution')
+
+    args = parser.parse_args()
+    main(args)

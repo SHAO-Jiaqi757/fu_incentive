@@ -1,5 +1,7 @@
 import torch.nn as nn
 import torch.nn.functional as F
+import torchvision.models as models
+from transformers import BertModel, BertTokenizer
 
 class CNNModel(nn.Module):
     def __init__(self, num_classes=10):
@@ -54,9 +56,9 @@ class ResidualBlock(nn.Module):
         out = F.relu(out)
         return out
 
-class ResNetModel(nn.Module):
+class ResNetModel10(nn.Module):
     def __init__(self, num_classes=10):
-        super(ResNetModel, self).__init__()
+        super(ResNetModel10, self).__init__()
         self.in_channels = 64
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=1, padding=1, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
@@ -83,3 +85,27 @@ class ResNetModel(nn.Module):
         out = out.view(out.size(0), -1)
         out = self.fc(out)
         return out
+
+
+class ResNetModel100(nn.Module):
+    def __init__(self, num_classes=100):  # Updated for CIFAR-100
+        super(ResNetModel100, self).__init__()
+        self.resnet = models.resnet18(weights=models.ResNet18_Weights.IMAGENET1K_V1)
+        num_ftrs = self.resnet.fc.in_features
+        self.resnet.fc = nn.Linear(num_ftrs, num_classes)
+
+    def forward(self, x):
+        return self.resnet(x)
+
+class BertClassifier(nn.Module):
+    def __init__(self, num_classes=4):  # AG News has 4 classes
+        super(BertClassifier, self).__init__()
+        self.bert = BertModel.from_pretrained('bert-base-uncased')
+        self.dropout = nn.Dropout(0.1)
+        self.fc = nn.Linear(self.bert.config.hidden_size, num_classes)
+
+    def forward(self, input_ids, attention_mask):
+        outputs = self.bert(input_ids=input_ids, attention_mask=attention_mask)
+        pooled_output = outputs.pooler_output
+        x = self.dropout(pooled_output)
+        return self.fc(x)

@@ -30,7 +30,12 @@ class FederatedServer:
                             hidden_dim=self.model_config['hidden_dim'], 
                             num_classes=self.model_config['num_classes'])
         elif self.model_config['type'] == 'resnet':
-            return ResNetModel(num_classes=self.model_config['num_classes'])
+            if self.model_config['num_classes'] == 10:
+                return ResNetModel10(num_classes=self.model_config['num_classes'])
+            elif self.model_config['num_classes'] == 100:
+                return ResNetModel100(num_classes=self.model_config['num_classes'])
+        elif self.model_config['type'] == 'bert':
+            return BertClassifier(num_classes=self.model_config['num_classes'])
         else:
             raise ValueError(f"Unsupported model type: {self.model_config['type']}")
 
@@ -95,7 +100,17 @@ class FederatedServer:
             # If continuous learning, start from the last round
             start_round = self.global_rounds
             self.global_rounds *= 2  # Double the number of rounds for continuous learning
-        
+            
+
+            for param in self.model.parameters():
+                param.requires_grad = False
+            if isinstance(self.model, BertClassifier):
+                for param in self.model.fc.parameters():
+                    param.requires_grad = True
+            else:
+                for param in list(self.model.parameters())[-2:]:  # Unfreeze last two layers
+                    param.requires_grad = True
+
         mp.set_start_method('spawn', force=True)
         for round in range(start_round, self.global_rounds):
             print(f"{'Continuous ' if continuous else ''}Global Round {round + 1}/{self.global_rounds}")
