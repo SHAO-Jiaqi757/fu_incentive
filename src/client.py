@@ -1,50 +1,14 @@
 import numpy as np
 import torch
-from torch.utils.data import Dataset, Subset
+from torch.utils.data import DataLoader, Subset
 from torchvision import datasets, transforms
 import os
-from typing import Tuple
-
-
-
 import torch.nn as nn
-import torch.multiprocessing as mp
-import os
-import json
-from typing import List, Tuple, Dict
-from torch.nn.parallel import DataParallel
+from typing import Tuple, Dict
 from src.models import *
-from torchvision import datasets, transforms
-from torch.utils.data import Dataset, DataLoader
+from src.partition import TextDataset
 from torchtext.datasets import AG_NEWS
 from transformers import BertTokenizer
-
-class TextDataset(Dataset):
-    def __init__(self, data, tokenizer, max_length=128):
-        self.data = data
-        self.tokenizer = tokenizer
-        self.max_length = max_length
-
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        text, label = self.data[idx]
-        encoding = self.tokenizer.encode_plus(
-            text,
-            add_special_tokens=True,
-            max_length=self.max_length,
-            return_token_type_ids=False,
-            padding='max_length',
-            truncation=True,
-            return_attention_mask=True,
-            return_tensors='pt',
-        )
-        return {
-            'input_ids': encoding['input_ids'].flatten(),
-            'attention_mask': encoding['attention_mask'].flatten(),
-            'labels': torch.tensor(label-1, dtype=torch.long)
-        }
 
 class FederatedClient:
     def __init__(self, client_id: int, dataset_name: str, model_config: Dict, num_clients: int, alpha: float, 
@@ -88,12 +52,13 @@ class FederatedClient:
                 transforms.Normalize((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761))
             ])
             dataset = datasets.CIFAR100(self.data_path, train=train, download=True, transform=transform)
-        elif self.dataset_name == 'ag_news':
+        elif self.dataset_name.lower() == 'ag_news':
             tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
             train_iter, test_iter = AG_NEWS(root=self.data_path, split=('train', 'test'))
             if train:
-                dataset = TextDataset(list(train_iter), tokenizer)
-            else: dataset = TextDataset(list(test_iter), tokenizer)
+                dataset = TextDataset(train_iter, tokenizer)
+            else:
+                dataset = TextDataset(test_iter, tokenizer)
         else:
             raise ValueError(f"Unsupported dataset: {self.dataset_name}")
 

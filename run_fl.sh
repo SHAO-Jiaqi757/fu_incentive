@@ -43,13 +43,13 @@ echo "$(date): Starting experiments" | tee -a "$main_log_file"
 
 # Define experiment configurations
 experiments=(
-    "resnet cifar100 10 0.5 100 32 2 0.01 64"
+    # "resnet cifar100 10 0.5 100 32 2 0.01 64"
     "bert ag_news 10 0.5 50 32 2 2e-5 32"
-    "resnet cifar100 10 0.2 100 32 2 0.01 64"
+    # "resnet cifar100 10 0.2 100 32 2 0.01 64"
     "bert ag_news 10 0.2 50 32 2 2e-5 32"
-    "resnet cifar100 10 0.8 100 32 2 0.01 64"
+    # "resnet cifar100 10 0.8 100 32 2 0.01 64"
     "bert ag_news 10 0.8 50 32 2 2e-5 32"
-    "resnet cifar100 10 1.0 100 32 2 0.01 64"
+    # "resnet cifar100 10 1.0 100 32 2 0.01 64"
     "bert ag_news 10 1.0 50 32 2 2e-5 32"
 )
 
@@ -59,15 +59,15 @@ wait_for_job_slot() {
         sleep 5
     done
 }
-
-# Run experiments
+# Run experiments sequentially
 for exp in "${experiments[@]}"; do
-    wait_for_job_slot
     log_file="experiments/exp_$(date +%Y%m%d_%H%M%S).log"
-    run_fl $exp "$log_file" &
-    echo "Started experiment: $exp" | tee -a "$main_log_file"
+    run_fl $exp "$log_file"
+    echo "Completed experiment: $exp" | tee -a "$main_log_file"
+    echo "Waiting 30 seconds before starting the next experiment..." | tee -a "$main_log_file"
     sleep 30  # Wait 30 seconds before starting the next experiment
 done
+
 
 # Wait for all background jobs to finish
 wait
