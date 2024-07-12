@@ -1,7 +1,6 @@
 #!/bin/bash
 
-# Function to run an experiment
-run_experiment() {
+run_retrain() {
     model=$1
     dataset=$2
     num_clients=$3
@@ -17,59 +16,65 @@ run_experiment() {
     echo "$(date): Starting experiment: Model=$model, Dataset=$dataset, Clients=$num_clients, Alpha=$alpha, Unlearn=$unlearn, Retrain=$retrain, Removed Clients=$removed_clients"
     
     python federated_learning.py \
-        --model $model \
-        --dataset $dataset \
-        --num_clients $num_clients \
-        --alpha $alpha \
-        --global_rounds $global_rounds \
-        --batch_size $batch_size \
-        --local_epochs $local_epochs \
-        --learning_rate $learning_rate \
-        $unlearn \
-        $retrain \
+        --model "$model" \
+        --dataset "$dataset" \
+        --num_clients "$num_clients" \
+        --alpha "$alpha" \
+        --global_rounds "$global_rounds" \
+        --batch_size "$batch_size" \
+        --local_epochs "$local_epochs" \
+        --learning_rate "$learning_rate" \
+        "$unlearn" \
+        "$retrain" \
         --removed_clients $removed_clients
-    
-    if [ $? -eq 0 ]; then
-        echo "$(date): Experiment completed successfully"
-    else
-        echo "$(date): Experiment failed with error code $?"
-    fi
-    echo "---------------------"
 
-    echo "Waiting for 30 seconds before the next experiment..."
-    sleep 30
+    local exit_code=$?
+    if [ $exit_code -eq 0 ]; then
+        echo "$(date): Experiment completed successfully" | tee -a "$log_file"
+    else
+        echo "$(date): Experiment failed with error code $exit_code" | tee -a "$log_file"
+    fi
+    echo "---------------------" | tee -a "$log_file"
+    echo "---------------------" >> "$log_file"
 }
 
 # Create a directory for all experiments
 mkdir -p experiments
 
 # Create a log file
-log_file="experiments/experiment_log_retrain.txt"
-exec > >(tee -a "$log_file") 2>&1
+main_log_file="experiments/experiment_retrain_log.txt"
 
-echo "$(date): Starting experiments"
+echo "$(date): Starting experiments" | tee -a "$main_log_file"
 
-# Unlearning experiments
-run_experiment cnn mnist 10 0.5 10 32 2 0.01 --unlearn --retrain "0,1,2"
-run_experiment mlp mnist 10 0.5 10 32 2 0.01 --unlearn --retrain "0,1,2"
-run_experiment resnet cifar10 10 0.5 20 32 2 0.01 --unlearn --retrain "0,1,2"
+# Define experiment configurations
+experiments=(
+    "resnet cifar100 10 0.5 100 32 2 0.01 --unlearn --retrain 0,1,2"
+    "bert ag_news 10 0.5 50 32 2 2e-5 --unlearn --retrain 0,1,2"
+    "resnet cifar100 10 0.2 100 32 2 0.01 --unlearn --retrain 0,1,2"
+    "bert ag_news 10 0.2 50 32 2 2e-5 --unlearn --retrain 0,1,2"
+    "resnet cifar100 10 0.8 100 32 2 0.01 --unlearn --retrain 0,1,2"
+    "bert ag_news 10 0.8 50 32 2 2e-5 --unlearn --retrain 0,1,2"
+    "resnet cifar100 10 1.0 100 32 2 0.01 --unlearn --retrain 0,1,2"
+    "bert ag_news 10 1.0 50 32 2 2e-5 --unlearn --retrain 0,1,2"
+)
 
-# # Varying heterogeneity (alpha)
-run_experiment cnn mnist 10 0.2 10 32 2 0.01 --unlearn --retrain "0,1,2"
-run_experiment mlp mnist 10 0.2 10 32 2 0.01 --unlearn --retrain "0,1,2"
-run_experiment resnet cifar10 10 0.2 20 32 2 0.01 --unlearn --retrain "0,1,2"
+# Function to wait for a job slot
+wait_for_job_slot() {
+    while [ $(jobs -r | wc -l) -ge 2 ]; do
+        sleep 5
+    done
+}
 
-run_experiment cnn mnist 10 0.8 10 32 2 0.01 --unlearn --retrain "0,1,2"
-run_experiment mlp mnist 10 0.8 10 32 2 0.01 --unlearn --retrain "0,1,2"
-run_experiment resnet cifar10 10 0.8 20 32 2 0.01 --unlearn --retrain "0,1,2"
+# Run experiments
+for exp in "${experiments[@]}"; do
+    wait_for_job_slot
+    log_file="experiments/exp_retrain_$(date +%Y%m%d_%H%M%S).log"
+    run_retrain $exp "$log_file" &
+    echo "Started experiment: $exp" | tee -a "$main_log_file"
+    sleep 30  # Wait 30 seconds before starting the next experiment
+done
 
+# Wait for all background jobs to finish
+wait
 
-run_experiment cnn mnist 10 1.0 10 32 2 0.01 --unlearn --retrain "0,1,2"
-run_experiment mlp mnist 10 1.0 10 32 2 0.01 --unlearn --retrain "0,1,2"
-run_experiment resnet cifar10 10 1.0 20 32 2 0.01 --unlearn --retrain "0,1,2"
-
-
-
-# Add more experiments as needed
-
-echo "$(date): All experiments completed. Results are saved in the 'experiments' directory."
+echo "$(date): All experiments completed. Results are saved in the 'experiments' directory." | tee -a "$main_log_file"

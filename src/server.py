@@ -124,7 +124,8 @@ class FederatedServer:
             aggregated_model = self.aggregate_models(client_models, participated_client_indices)
             self.model.load_state_dict(aggregated_model)
 
-            self.save_checkpoint(round + 1)
+            if round % 10 == 0 or round == self.global_rounds - 1:
+                self.save_checkpoint(round + 1)
 
             global_performance, local_performances = self.evaluate_model()
             

@@ -9,7 +9,7 @@ from transformers import BertTokenizer
 
 class TextDataset(Dataset):
     def __init__(self, data, tokenizer, max_length=128):
-        self.data = data
+        self.data = list(data)  # Convert iterator to list
         self.tokenizer = tokenizer
         self.max_length = max_length
 
@@ -17,7 +17,7 @@ class TextDataset(Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        text, label = self.data[idx]
+        label, text = self.data[idx]  # AG News format is (label, text)
         encoding = self.tokenizer.encode_plus(
             text,
             add_special_tokens=True,
@@ -33,6 +33,7 @@ class TextDataset(Dataset):
             'attention_mask': encoding['attention_mask'].flatten(),
             'labels': torch.tensor(label - 1, dtype=torch.long)  # AG News labels start from 1
         }
+
 def dirichlet_partition(data: Dataset, num_clients: int, alpha: float, train: bool = True) -> Tuple[List[Subset], List[np.ndarray]]:
     """
     Partition the dataset using Dirichlet distribution.
@@ -44,9 +45,10 @@ def dirichlet_partition(data: Dataset, num_clients: int, alpha: float, train: bo
     :return: List of Subsets for each client and list of data indices for each client
     """
     if isinstance(data, TextDataset):
-        labels = np.array([item['labels'].item() for item in data])
+        labels = np.array([item[0] - 1 for item in data.data])  # AG News labels start from 1
     else:
         labels = np.array(data.targets)
+    
     num_classes = len(np.unique(labels))
     
     # Dirichlet distribution for label distribution
