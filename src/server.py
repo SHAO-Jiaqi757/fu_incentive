@@ -118,7 +118,7 @@ class FederatedServer:
             participated_client_indices = self.select_clients()
             
             # Parallel training of clients
-            with mp.Pool(processes=len(participated_client_indices)) as pool:
+            with mp.Pool(processes=self.num_gpus) as pool:
                 client_models = pool.map(self.train_client, participated_client_indices)
 
             aggregated_model = self.aggregate_models(client_models, participated_client_indices)
@@ -130,7 +130,9 @@ class FederatedServer:
             global_performance, local_performances = self.evaluate_model()
             
             self.log_performance(round + 1, global_performance, local_performances)
-
+            # free gpu memory
+            torch.cuda.empty_cache()
+            
         print(f"{'Continuous ' if continuous else ''}Federated Learning completed.")
 
     def select_clients(self):
