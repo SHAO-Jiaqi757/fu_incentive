@@ -16,6 +16,11 @@ def load_all_labels(dataset_name):
     elif dataset_name.lower() == 'cifar10':
         dataset = datasets.CIFAR10('./data', train=True, download=True)
         return np.array(dataset.targets)
+    elif dataset_name.lower() == 'cifar100':
+        dataset = datasets.CIFAR100('./data', train=True, download=True)
+        return np.array(dataset.targets)
+    elif dataset_name.lower() == 'ag_news':
+        return np.array([0, 1, 2, 3])  # AG News has 4 classes
     else:
         raise ValueError(f"Unsupported dataset: {dataset_name}")
         

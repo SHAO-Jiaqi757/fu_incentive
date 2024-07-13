@@ -50,24 +50,26 @@ exec > >(tee -a "$log_file") 2>&1
 echo "$(date): Starting experiments"
 
 # Unlearning experiments
-run_experiment cnn mnist 10 0.5 10 32 2 0.01 --unlearn --continuous "0,1,2"
-run_experiment mlp mnist 10 0.5 10 32 2 0.01 --unlearn --continuous "0,1,2"
-run_experiment resnet cifar10 10 0.5 20 32 2 0.01 --unlearn --continuous "0,1,2"
+# run_experiment cnn mnist 10 0.5 10 32 2 0.01 --unlearn --continuous "0,1,2"
+# run_experiment mlp mnist 10 0.5 10 32 2 0.01 --unlearn --continuous "0,1,2"
+# run_experiment resnet cifar10 10 0.5 20 32 2 0.01 --unlearn --continuous "0,1,2"
+run_experiment resnet cifar100 10 0.5 100 32 2 0.01 --unlearn --continuous "0,1,2"
 
 # # Varying heterogeneity (alpha)
-run_experiment cnn mnist 10 0.2 10 32 2 0.01 --unlearn --continuous "0,1,2"
-run_experiment mlp mnist 10 0.2 10 32 2 0.01 --unlearn --continuous "0,1,2"
-run_experiment resnet cifar10 10 0.2 20 32 2 0.01 --unlearn --continuous "0,1,2"
+# run_experiment cnn mnist 10 0.2 10 32 2 0.01 --unlearn --continuous "0,1,2"
+# run_experiment mlp mnist 10 0.2 10 32 2 0.01 --unlearn --continuous "0,1,2"
+# run_experiment resnet cifar10 10 0.2 20 32 2 0.01 --unlearn --continuous "0,1,2"
+run_experiment resnet cifar100 10 0.5 100 32 2 0.01 --unlearn --continuous "0,1,2"
 
-run_experiment cnn mnist 10 0.8 10 32 2 0.01 --unlearn --continuous "0,1,2"
-run_experiment mlp mnist 10 0.8 10 32 2 0.01 --unlearn --continuous "0,1,2"
-run_experiment resnet cifar10 10 0.8 20 32 2 0.01 --unlearn --continuous "0,1,2"
+# run_experiment cnn mnist 10 0.8 10 32 2 0.01 --unlearn --continuous "0,1,2"
+# run_experiment mlp mnist 10 0.8 10 32 2 0.01 --unlearn --continuous "0,1,2"
+# run_experiment resnet cifar10 10 0.8 20 32 2 0.01 --unlearn --continuous "0,1,2"
+run_experiment resnet cifar100 10 0.5 100 32 2 0.01 --unlearn --continuous "0,1,2"
 
-
-run_experiment cnn mnist 10 1.0 10 32 2 0.01 --unlearn --continuous "0,1,2"
-run_experiment mlp mnist 10 1.0 10 32 2 0.01 --unlearn --continuous "0,1,2"
-run_experiment resnet cifar10 10 1.0 20 32 2 0.01 --unlearn --continuous "0,1,2"
-
+# run_experiment cnn mnist 10 1.0 10 32 2 0.01 --unlearn --continuous "0,1,2"
+# run_experiment mlp mnist 10 1.0 10 32 2 0.01 --unlearn --continuous "0,1,2"
+# run_experiment resnet cifar10 10 1.0 20 32 2 0.01 --unlearn --continuous "0,1,2"
+run_experiment resnet cifar100 10 0.5 100 32 2 0.01 --unlearn --continuous "0,1,2"
 
 
 # Add more experiments as needed
