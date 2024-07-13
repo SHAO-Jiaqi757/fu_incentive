@@ -23,14 +23,14 @@ run_fu_game() {
 
 
 # FU game for the same experiments
-run_fu_game mnist 10 0.5 
-run_fu_game cifar10 10 0.5 
+# run_fu_game mnist 10 0.5 
+run_fu_game cifar100 10 0.5 
 
-run_fu_game mnist 10 0.2
-run_fu_game cifar10 10 0.2 
+# run_fu_game mnist 10 0.2
+run_fu_game cifar100 10 0.2 
 
-run_fu_game mnist 10 0.8
-run_fu_game cifar10 10 0.8 
+# run_fu_game mnist 10 0.8
+run_fu_game cifar100 10 0.8 
 
-run_fu_game mnist 10 1.0
-run_fu_game cifar10 10 1.0
+# run_fu_game mnist 10 1.0
+run_fu_game cifar100 10 1.0

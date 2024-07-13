@@ -204,7 +204,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Calculate Wasserstein distances for federated learning client partitions.')
-    parser.add_argument('--dataset', type=str, required=True, help='Dataset name (mnist or cifar10)')
+    parser.add_argument('--dataset', type=str, required=True, help='Dataset name (mnist, cifar10, cifar100)')
     parser.add_argument('--num_clients', type=int, required=True, help='Number of clients')
     parser.add_argument('--alpha', type=float, required=True, help='Dirichlet distribution alpha parameter')
 

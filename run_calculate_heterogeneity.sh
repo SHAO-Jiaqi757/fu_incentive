@@ -33,18 +33,23 @@ mkdir -p experiments
 echo "$(date): Starting experiments"
 
 # Distance calculations for the same experiments
-run_hetero_calculation mnist 10 0.5 "0,1,2"
-run_hetero_calculation cifar10 10 0.5 "0,1,2"
+# run_hetero_calculation mnist 10 0.5 "0,1,2"
+# run_hetero_calculation cifar10 10 0.5 "0,1,2"
 
 
-run_hetero_calculation mnist 10 0.2 "0,1,2"
-run_hetero_calculation cifar10 10 0.2 "0,1,2"
+# run_hetero_calculation mnist 10 0.2 "0,1,2"
+# run_hetero_calculation cifar10 10 0.2 "0,1,2"
 
 
-run_hetero_calculation mnist 10 0.8 "0,1,2"
-run_hetero_calculation cifar10 10 0.8 "0,1,2"
+# run_hetero_calculation mnist 10 0.8 "0,1,2"
+# run_hetero_calculation cifar10 10 0.8 "0,1,2"
 
 
-run_hetero_calculation mnist 10 1.0 "0,1,2"
-run_hetero_calculation cifar10 10 1.0 "0,1,2"
+# run_hetero_calculation mnist 10 1.0 "0,1,2"
+# run_hetero_calculation cifar10 10 1.0 "0,1,2"
+
+run_hetero_calculation cifar100 10 0.2 "0,1,2"
+run_hetero_calculation cifar100 10 0.5 "0,1,2"
+run_hetero_calculation cifar100 10 0.8 "0,1,2"
+run_hetero_calculation cifar100 10 1.0 "0,1,2"
 
