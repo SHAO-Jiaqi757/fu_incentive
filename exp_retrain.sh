@@ -42,20 +42,20 @@ run_retrain() {
 mkdir -p experiments
 
 # Create a log file
-main_log_file="experiments/experiment_retrain_log.txt"
+main_log_file="logs/experiment_retrain_log.txt"
 
 echo "$(date): Starting experiments" | tee -a "$main_log_file"
 
 # Define experiment configurations
 experiments=(
     "resnet cifar100 10 0.5 100 32 2 0.01 --unlearn --retrain 0,1,2"
-    "bert ag_news 10 0.5 50 32 2 2e-5 --unlearn --retrain 0,1,2"
+    # "bert ag_news 10 0.5 50 32 2 2e-5 --unlearn --retrain 0,1,2"
     "resnet cifar100 10 0.2 100 32 2 0.01 --unlearn --retrain 0,1,2"
-    "bert ag_news 10 0.2 50 32 2 2e-5 --unlearn --retrain 0,1,2"
+    # "bert ag_news 10 0.2 50 32 2 2e-5 --unlearn --retrain 0,1,2"
     "resnet cifar100 10 0.8 100 32 2 0.01 --unlearn --retrain 0,1,2"
-    "bert ag_news 10 0.8 50 32 2 2e-5 --unlearn --retrain 0,1,2"
+    # "bert ag_news 10 0.8 50 32 2 2e-5 --unlearn --retrain 0,1,2"
     "resnet cifar100 10 1.0 100 32 2 0.01 --unlearn --retrain 0,1,2"
-    "bert ag_news 10 1.0 50 32 2 2e-5 --unlearn --retrain 0,1,2"
+    # "bert ag_news 10 1.0 50 32 2 2e-5 --unlearn --retrain 0,1,2"
 )
 
 # Function to wait for a job slot
@@ -68,7 +68,7 @@ wait_for_job_slot() {
 # Run experiments
 for exp in "${experiments[@]}"; do
     wait_for_job_slot
-    log_file="experiments/exp_retrain_$(date +%Y%m%d_%H%M%S).log"
+    log_file="logs/exp_retrain_$(date +%Y%m%d_%H%M%S).log"
     run_retrain $exp "$log_file" &
     echo "Started experiment: $exp" | tee -a "$main_log_file"
     sleep 30  # Wait 30 seconds before starting the next experiment

@@ -63,6 +63,8 @@ class FederatedServer:
         return aggregated_model
 
     def save_checkpoint(self, round: int):
+        if not os.path.exists(self.checkpoint_dir):
+            os.makedirs(self.checkpoint_dir, exist_ok=True)
         checkpoint_path = os.path.join(self.checkpoint_dir, f'global_model_round_{round}.pth')
         torch.save(self.model.state_dict(), checkpoint_path)
         print(f"Checkpoint saved: {checkpoint_path}")
@@ -91,7 +93,10 @@ class FederatedServer:
         return (global_avg_loss, global_accuracy), local_performances
 
     def load_model(self, model_path: str):
-        self.model.load_state_dict(torch.load(model_path))
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(f"Model file not found: {model_path}")
+        state_dict = torch.load(model_path)
+        self.model.load_state_dict(state_dict)
         print(f"Loaded pretrained model from {model_path}")
 
     def train(self, continuous: bool = False):
@@ -138,7 +143,11 @@ class FederatedServer:
     def select_clients(self):
         # Implement client selection strategy here
         # For now, we'll use all clients
-        return list(range(len(self.clients)))
+        s_clients = []
+        for i in range(len(self.clients)):
+            if self.clients[i].participation_level > 0:
+                s_clients.append(i)
+        return s_clients
     
     def train_client(self, client_idx: int):
         gpu_id = client_idx % self.num_gpus
