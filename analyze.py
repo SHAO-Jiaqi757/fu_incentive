@@ -114,8 +114,6 @@ def main(args):
     excel_data = []
 
     for method in ["retrain", "continuous"]:
-        if args.alpha != 1.0 and method == "retrain":
-            continue
         row = {
             "Model": args.model,
             "Dataset": args.dataset,
