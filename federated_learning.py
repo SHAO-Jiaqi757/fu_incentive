@@ -29,6 +29,9 @@ def main(args):
 
     # Create a directory for this experiment
     exp_dir = os.path.join("experiments", exp_name)
+    if args.continuous:
+        exp_dir = os.path.join(exp_dir, f"lambda_v{args.lambda_v}_lambda_s{args.lambda_s}_lambda_q{args.lambda_q}")
+        
     os.makedirs(exp_dir, exist_ok=True)
     partition_dir = f"partitions/partition_indices_{args.dataset}_clients{args.num_clients}_alpha{args.alpha}"
     if not os.path.exists(partition_dir):
@@ -64,7 +67,7 @@ def main(args):
             server.load_model(pretrained_model_path)
             
             # client strategies
-            statistics_path = os.path.join(partition_dir, "statistics.json")
+            statistics_path = os.path.join(partition_dir, f'statistics_lambda_v{args.lambda_v}_lambda_s{args.lambda_s}_lambda_q{args.lambda_q}.json')
             statistics = json.load(open(statistics_path, "r"))
             client_strategies = statistics["game_results"]["optimal_strategies"]
             fu_clients = statistics["game_results"]["fu_clients"] 
@@ -200,6 +203,10 @@ if __name__ == "__main__":
         default=5,
         help="Number of clients for continuous learning",
     )
+    parser.add_argument('--lambda_v', type=float, default=1.0, help='lambda_v hyperparameter')
+    parser.add_argument('--lambda_s', type=float, default=1.0, help='lambda_s hyperparameter')
+    parser.add_argument('--lambda_q', type=float, default=1.0, help='lambda_q hyperparameter')
+
 
     args = parser.parse_args()
     main(args)

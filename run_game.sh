@@ -1,15 +1,22 @@
+#!/bin/bash
 
 run_fu_game() {
     dataset=$1
     num_clients=$2
     alpha=$3
+    lambda_v=$4
+    lambda_s=$5
+    lambda_q=$6
 
-    echo "$(date): Starting FU game: Dataset=$dataset, Clients=$num_clients, Alpha=$alpha"
+    echo "$(date): Starting FU game: Dataset=$dataset, Clients=$num_clients, Alpha=$alpha, Lambda_v=$lambda_v, Lambda_s=$lambda_s, Lambda_q=$lambda_q"
     
     python src/game.py \
         --dataset $dataset \
         --num_clients $num_clients \
         --alpha $alpha \
+        --lambda_v $lambda_v \
+        --lambda_s $lambda_s \
+        --lambda_q $lambda_q
     
     if [ $? -eq 0 ]; then
         echo "$(date): FU game completed successfully"
@@ -17,20 +24,23 @@ run_fu_game() {
         echo "$(date): FU game failed with error code $?"
     fi
     echo "---------------------"
-
 }
 
+# FU game parameters
+dataset=(cifar100 cifar10)
+num_clients=10
+alphas=(0.5 0.2 0.8 1.0)
+lambda_sets=(
+    "100 1 1"
+    "1 100 1"
+    "1 1 100"
+)
 
-
-# FU game for the same experiments
-# run_fu_game mnist 10 0.5 
-run_fu_game cifar100 10 0.5 
-
-# run_fu_game mnist 10 0.2
-run_fu_game cifar100 10 0.2 
-
-# run_fu_game mnist 10 0.8
-run_fu_game cifar100 10 0.8 
-
-# run_fu_game mnist 10 1.0
-run_fu_game cifar100 10 1.0
+# Run FU game for all combinations of alphas and lambda sets
+for dataset in "${dataset[@]}"; do
+    for alpha in "${alphas[@]}"; do
+        for lambda_set in "${lambda_sets[@]}"; do
+            run_fu_game $dataset $num_clients $alpha $lambda_set
+        done
+    done
+done

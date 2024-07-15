@@ -6,18 +6,16 @@ from src.models import *
 from src.client import FederatedClient
 from typing import List, Tuple, Dict
 
-def load_model(model_path: str, model_type: str, num_classes: int) -> torch.nn.Module:
+def load_model(model_path: str, model_type: str, dataset_name: str) -> torch.nn.Module: 
     if model_type == 'cnn':
-        model = CNNModel(num_classes=num_classes)
+        model = CNNModel(num_classes=10)  # Assuming 10 classes for MNIST/CIFAR-10
     elif model_type == 'mlp':
-        model = MLPModel(input_dim=784, hidden_dim=64, num_classes=num_classes)  # Adjust input_dim as needed
+        model = MLPModel(input_dim=784, hidden_dim=64, num_classes=10)  # Assuming 10 classes for MNIST/CIFAR-10
     elif model_type == 'resnet':
-        if num_classes == 10:
-            model = ResNetModel10(num_classes=num_classes)
-        elif num_classes == 100:
-            model = ResNetModel100(num_classes=num_classes)
-        else: 
-            raise ValueError(f"Unsupported number of classes: {num_classes}")
+        if  dataset_name == 'cifar10':
+            model = ResNetModel10(num_classes=10)
+        elif dataset_name == 'cifar100':
+            model = ResNetModel100(num_classes=100)
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
     
@@ -50,6 +48,9 @@ def main(args):
             exp_name += "_continuous"
 
     exp_dir = os.path.join("experiments", exp_name)
+    if args.continuous:
+        exp_dir = os.path.join(exp_dir, f"lambda_v{args.lambda_v}_lambda_s{args.lambda_s}_lambda_q{args.lambda_q}")
+        
     config_path = os.path.join(exp_dir, "config.json")
     configs = json.load(open(config_path, 'r'))
     global_rounds = configs['global_rounds']
@@ -59,14 +60,14 @@ def main(args):
     model_path = os.path.join(exp_dir, f"global_model_round_{global_rounds}.pth")
     model_name = configs['model']
     # Load the model
-    model = load_model(model_path, model_name, num_classes=10)  # Assuming 10 classes for MNIST/CIFAR-10
+    model = load_model(model_path, model_name, dataset_name=configs['dataset'])  # Assuming 10 classes for MNIST/CIFAR-10
 
     # Initialize all clients
     all_clients = [
         FederatedClient(
             client_id=i,
             dataset_name=configs['dataset'],
-            model_config={'type': model_name, 'num_classes': 10},
+            model_config={'type': model_name},
             num_clients=args.num_clients,
             alpha=args.alpha,
             batch_size=configs['batch_size'],
@@ -76,7 +77,10 @@ def main(args):
     ]
 
     partition_dir = f"partitions/partition_indices_{args.dataset}_clients{args.num_clients}_alpha{args.alpha}"
-    statistics_path = os.path.join(partition_dir, "statistics.json")
+    if args.continuous:
+        statistics_path = os.path.join(partition_dir, f'statistics_lambda_v{args.lambda_v}_lambda_s{args.lambda_s}_lambda_q{args.lambda_q}.json')
+    elif args.retrain:
+        statistics_path = os.path.join(partition_dir, "statistics.json")
     statistics = json.load(open(statistics_path, 'r'))
     
     client_weights = statistics["weights"]
@@ -114,12 +118,16 @@ def main(args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Federated Learning Model Evaluation")
     parser.add_argument('--model', type=str, choices=['cnn', 'mlp', 'resnet'], required=True, help='Model architecture')
-    parser.add_argument('--dataset', type=str, choices=['mnist', 'cifar10'], required=True, help='Dataset used')
+    parser.add_argument('--dataset', type=str, choices=['mnist', 'cifar10', "cifar100", "ag_news"], required=True, help='Dataset used')
     parser.add_argument('--num_clients', type=int, required=True, help='Number of clients')
     parser.add_argument('--alpha', type=float, required=True, help='Alpha parameter for Dirichlet distribution')
     parser.add_argument('--unlearn', action='store_true', help='Whether unlearning was performed')
     parser.add_argument('--retrain', action='store_true', help='Whether retraining was performed after unlearning')
     parser.add_argument('--continuous', action='store_true', help='Whether continuous learning was performed after unlearning')
+    parser.add_argument('--lambda_v', type=float, default=1.0, help='lambda_v hyperparameter')
+    parser.add_argument('--lambda_s', type=float, default=1.0, help='lambda_s hyperparameter')
+    parser.add_argument('--lambda_q', type=float, default=1.0, help='lambda_q hyperparameter')
+
 
     args = parser.parse_args()
     main(args)

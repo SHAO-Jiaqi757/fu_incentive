@@ -37,7 +37,7 @@ run_fl() {
 mkdir -p experiments
 
 # Create a log file
-main_log_file="experiments/experiment_log.txt"
+main_log_file="logs/experiment_log.txt"
 
 echo "$(date): Starting experiments" | tee -a "$main_log_file"
 
@@ -61,7 +61,7 @@ wait_for_job_slot() {
 }
 # Run experiments sequentially
 for exp in "${experiments[@]}"; do
-    log_file="experiments/exp_$(date +%Y%m%d_%H%M%S).log"
+    log_file="logs/exp_$(date +%Y%m%d_%H%M%S).log"
     run_fl $exp "$log_file"
     echo "Completed experiment: $exp" | tee -a "$main_log_file"
     echo "Waiting 30 seconds before starting the next experiment..." | tee -a "$main_log_file"

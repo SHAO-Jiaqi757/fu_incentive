@@ -30,6 +30,9 @@ class FederatedClient:
     def set_participation_level(self, participation_level: float):
         self.participation_level = participation_level
         self.train_dataset.indices = self.train_dataset.indices[:int(len(self.train_dataset) * participation_level)]
+        # less than 10 samplpes
+        if len(self.train_dataset) < 10:
+            self.participation_level = 0
         print(f"Client {self.client_id} participation level: {participation_level}, train set size: {len(self.train_dataset) * participation_level} (len(self.train_dataset))")
 
     def load_dataset(self, train: bool) -> Subset:
@@ -73,7 +76,6 @@ class FederatedClient:
 
         # Create a subset of the dataset using the loaded indices
         return Subset(dataset, indices)
-
 
     def train(self, model: torch.nn.Module, gpu_id: int) -> torch.nn.Module:
         device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")

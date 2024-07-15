@@ -4,3 +4,4 @@ data
 partitions
 __pycache__
 *.txt
+logs

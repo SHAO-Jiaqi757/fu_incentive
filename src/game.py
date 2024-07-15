@@ -113,7 +113,8 @@ def main(args):
     num_clients = args.num_clients
     alpha = args.alpha
     
-    with open(f'partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/statistics.json', 'r') as f:
+    statistics_file = f'partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/statistics.json'
+    with open(statistics_file, 'r') as f:
         results = json.load(f)
 
     H_N_bar = results["H_N"]
@@ -133,21 +134,19 @@ def main(args):
     
     # Set up hyperparameters and create clients
     N = len(Hs)
-    lambda_v, lambda_s = 1.0, 1.0
     l_v = l_q = l_s = 1e4
-    lambda_q = 1.0
 
 
     np.random.seed(42) 
     costs = weights * 10 # Costs are proportional to weights
     clients = [
-        Client(i, weights[i], Hs[i], costs[i], l_q, lambda_q)
+        Client(i, weights[i], Hs[i], costs[i], l_q, args.lambda_q)
         for i in range(N)
     ]
 
     # Create server with initial budget
     initial_budget = sum(client.c for client in clients)  # Start with a budget equal to the sum of all costs
-    server = Server(clients, lambda_v, lambda_s, l_v, l_s, H_N_bar, H_O_bar, initial_budget)
+    server = Server(clients, args.lambda_v, args.lambda_s, l_v, l_s, H_N_bar, H_O_bar, initial_budget)
 
     # Search for the appropriate budget
     optimal_budget = binary_search_budget(server, 0, initial_budget * 2)
@@ -193,11 +192,15 @@ def main(args):
         "final_H": server.calculate_H(optimal_x),
         "H_star": server.H_star,
         "budget_used": sum(p * x for p, x in zip(optimal_p, optimal_x)),
-        "fu_clients": fu_clients
+        "fu_clients": fu_clients,
+        "lambda_v": args.lambda_v,
+        "lambda_s": args.lambda_s,
+        "lambda_q": args.lambda_q,
     }
     print("results", results)
     # save results
-    with open(f'partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/statistics.json', 'w') as f:
+    statistics_file = f'partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/statistics_lambda_v{args.lambda_v}_lambda_s{args.lambda_s}_lambda_q{args.lambda_q}.json'
+    with open(statistics_file, 'w') as f:
         json.dump(results, f, indent=2)
         
 
@@ -207,6 +210,9 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, required=True, help='Dataset name (mnist, cifar10, cifar100)')
     parser.add_argument('--num_clients', type=int, required=True, help='Number of clients')
     parser.add_argument('--alpha', type=float, required=True, help='Dirichlet distribution alpha parameter')
+    parser.add_argument('--lambda_v', type=float, default=1.0, help='lambda_v hyperparameter')
+    parser.add_argument('--lambda_s', type=float, default=1.0, help='lambda_s hyperparameter')
+    parser.add_argument('--lambda_q', type=float, default=1.0, help='lambda_q hyperparameter')
 
     args = parser.parse_args()
     main(args)

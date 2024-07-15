@@ -4,6 +4,8 @@ import json
 import numpy as np
 from typing import Dict, List, Tuple
 
+import pandas as pd
+
 def load_performance_metrics(exp_dir: str, global_rounds: int) -> Dict:
     file_path = os.path.join(exp_dir, f"performance_metrics_round_{global_rounds}.json")
     with open(file_path, 'r') as f:
@@ -20,8 +22,8 @@ def calculate_performance_changes(regular_perf: Dict, unlearned_perf: Dict, remo
         "accuracy_change": unlearned_perf["global_performance"]["accuracy"] - regular_perf["global_accuracy"],
     }
     if retrain_baseline_g_performance is not None: 
-        global_changes["unlearn_loss_change"] = unlearned_perf["global_performance"]["loss"] - retrain_baseline_g_performance["loss"]
-        global_changes["unlearn_accuracy_change"] = unlearned_perf["global_performance"]["accuracy"] - retrain_baseline_g_performance["accuracy"]
+        global_changes["unlearn_loss_change"] = unlearned_perf["global_performance"]["loss"] - retrain_baseline_g_performance["global_loss"]
+        global_changes["unlearn_accuracy_change"] = unlearned_perf["global_performance"]["accuracy"] - retrain_baseline_g_performance["global_accuracy"]
 
     local_changes = {}
     for client_id, unlearned_local_perf in unlearned_perf["local_performances"].items():
@@ -45,7 +47,8 @@ def main(args):
     retrain_config_path = os.path.join(retrain_exp_dir, "config.json")
     retrain_configs = json.load(open(retrain_config_path, 'r'))
     
-    continuous_exp_name = f"{base_exp_name}_unlearn_continuous"
+    continuous_exp_name = f"{base_exp_name}_unlearn_continuous/lambda_v{args.lambda_v}_lambda_s{args.lambda_s}_lambda_q{args.lambda_q}"
+        
     continuous_exp_dir = os.path.join("experiments", continuous_exp_name)
     continuous_config_path = os.path.join(continuous_exp_dir, "config.json")
     continuous_configs = json.load(open(continuous_config_path, 'r'))
@@ -54,6 +57,7 @@ def main(args):
     # Load performance metrics
     regular_perf = load_performance_metrics(regular_exp_dir, regular_configs["global_rounds"])
     retrain_results = load_evaluation_results(retrain_exp_dir, retrain_configs["global_rounds"])
+    retrain_unlearn_results = load_performance_metrics(retrain_exp_dir, retrain_configs["global_rounds"])
     continuous_results = load_evaluation_results(continuous_exp_dir, continuous_configs["global_rounds"]*2)
 
 
@@ -61,7 +65,7 @@ def main(args):
     retrain_global_changes, retrain_local_changes = calculate_performance_changes(
         regular_perf, retrain_results["all_clients"], retrain_configs["removed_clients"].split(','))
     continuous_global_changes, continuous_local_changes = calculate_performance_changes(
-        regular_perf, continuous_results["all_clients"], continuous_configs["removed_clients"].split(','), retrain_results["all_clients"]["global_performance"])
+        regular_perf, continuous_results["all_clients"], continuous_configs["removed_clients"].split(','), retrain_unlearn_results)
 
     # Prepare results
     analysis_results = {
@@ -104,6 +108,54 @@ def main(args):
         print(f"Average Local Performance Changes for Remaining Clients:")
         print(f"  Loss Change: {analysis_results[method]['average_local_changes']['loss_change']:.4f}")
         print(f"  Accuracy Change: {analysis_results[method]['average_local_changes']['accuracy_change']:.4f}")
+    
+    
+    
+    excel_data = []
+
+    for method in ["retrain", "continuous"]:
+        if args.alpha != 1.0 and method == "retrain":
+            continue
+        row = {
+            "Model": args.model,
+            "Dataset": args.dataset,
+            "Num_Clients": args.num_clients,
+            "Alpha": args.alpha,
+            "Method": method,
+            "Lambda_v": args.lambda_v if method == "continuous" else "-",
+            "Lambda_s": args.lambda_s if method == "continuous" else "-",
+            "Lambda_q": args.lambda_q if method == "continuous" else "-",
+        "S": analysis_results[method]['global_changes']['accuracy_change'],
+            "V": analysis_results[method]['global_changes'].get('unlearn_accuracy_change', '-'),
+            "Q1(min)": np.min([c["accuracy_change"] for c in analysis_results[method]["local_changes"].values()]),
+            "Q2(var_of_abs)": np.var([abs(c["accuracy_change"]) for c in analysis_results[method]["local_changes"].values()]),
+            "Q3(var)": np.var([c["accuracy_change"] for c in analysis_results[method]["local_changes"].values()]),
+            "Remaining_Clients": ",".join(analysis_results[method]['local_changes'].keys()),
+        }
+
+        # Add local changes for remaining clients
+        for client_id, changes in analysis_results[method]['local_changes'].items():
+            row[f"Client_{client_id}_Accuracy_Change"] = changes['accuracy_change']
+
+        excel_data.append(row)
+
+    # Load existing data or create new DataFrame
+    excel_file = os.path.join("experiments", f"{args.model}_{args.dataset}_unlearning_analysis.xlsx")
+    if os.path.exists(excel_file):
+        existing_df = pd.read_excel(excel_file)
+        new_df = pd.DataFrame(excel_data)
+        df = pd.concat([existing_df, new_df], ignore_index=True)
+    else:
+        df = pd.DataFrame(excel_data)
+
+    # Save to Excel
+    df.to_excel(excel_file, index=False)
+
+    # Save to CSV
+    csv_file = os.path.join("experiments", f"{args.model}_{args.dataset}_unlearning_analysis.csv")
+    df.to_csv(csv_file, index=False)
+
+    print(f"Analysis results saved to {excel_file}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Federated Learning Unlearning Analysis")
@@ -111,6 +163,9 @@ if __name__ == "__main__":
     parser.add_argument('--dataset', type=str, required=True, help='Dataset used')
     parser.add_argument('--num_clients', type=int, required=True, help='Number of clients')
     parser.add_argument('--alpha', type=float, required=True, help='Alpha parameter for Dirichlet distribution')
+    parser.add_argument('--lambda_v', type=float, default=1.0, help='lambda_v hyperparameter')
+    parser.add_argument('--lambda_s', type=float, default=1.0, help='lambda_s hyperparameter')
+    parser.add_argument('--lambda_q', type=float, default=1.0, help='lambda_q hyperparameter')
 
     args = parser.parse_args()
     main(args)
