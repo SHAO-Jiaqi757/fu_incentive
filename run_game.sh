@@ -27,10 +27,15 @@ run_fu_game() {
 }
 
 # FU game parameters
-dataset=(cifar100 cifar10)
+dataset=(cifar100 cifar10 ag_news)
+# dataset=(ag_news)
 num_clients=10
 alphas=(0.5 0.2 0.8 1.0)
 lambda_sets=(
+    "1 1 1"
+    "1000 1 1"
+    "1 1000 1"
+    "1 1 1000"
     "100 1 1"
     "1 100 1"
     "1 1 100"
@@ -40,7 +45,7 @@ lambda_sets=(
 for dataset in "${dataset[@]}"; do
     for alpha in "${alphas[@]}"; do
         for lambda_set in "${lambda_sets[@]}"; do
-            run_fu_game $dataset $num_clients $alpha $lambda_set
+            run_fu_game $dataset $num_clients $alpha $lambda_set >> "experiments/fu_game_${dataset}_${num_clients}.txt"
         done
     done
 done

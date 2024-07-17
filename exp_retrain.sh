@@ -12,6 +12,7 @@ run_retrain() {
     unlearn=$9
     retrain=${10}
     removed_clients=${11}
+    checkpoint_model_path=${12}
 
     echo "$(date): Starting experiment: Model=$model, Dataset=$dataset, Clients=$num_clients, Alpha=$alpha, Unlearn=$unlearn, Retrain=$retrain, Removed Clients=$removed_clients"
     
@@ -26,8 +27,14 @@ run_retrain() {
         --learning_rate "$learning_rate" \
         "$unlearn" \
         "$retrain" \
-        --removed_clients $removed_clients
+        --removed_clients $removed_clients  
 
+    if [ -n "$checkpoint_model_path" ]; then
+        cmd+=" --checkpoint_model_path \"$checkpoint_model_path\""
+    fi
+    
+    eval $cmd
+    
     local exit_code=$?
     if [ $exit_code -eq 0 ]; then
         echo "$(date): Experiment completed successfully" | tee -a "$log_file"
@@ -48,14 +55,14 @@ echo "$(date): Starting experiments" | tee -a "$main_log_file"
 
 # Define experiment configurations
 experiments=(
-    "resnet cifar100 10 0.5 100 32 2 0.01 --unlearn --retrain 0,1,2"
+    #"resnet cifar100 10 0.5 100 32 2 0.01 --unlearn --retrain 0,1,2"
     # "bert ag_news 10 0.5 50 32 2 2e-5 --unlearn --retrain 0,1,2"
-    "resnet cifar100 10 0.2 100 32 2 0.01 --unlearn --retrain 0,1,2"
+    #"resnet cifar100 10 0.2 100 32 2 0.01 --unlearn --retrain 0,1,2"
     # "bert ag_news 10 0.2 50 32 2 2e-5 --unlearn --retrain 0,1,2"
-    "resnet cifar100 10 0.8 100 32 2 0.01 --unlearn --retrain 0,1,2"
-    # "bert ag_news 10 0.8 50 32 2 2e-5 --unlearn --retrain 0,1,2"
-    "resnet cifar100 10 1.0 100 32 2 0.01 --unlearn --retrain 0,1,2"
-    # "bert ag_news 10 1.0 50 32 2 2e-5 --unlearn --retrain 0,1,2"
+    #"resnet cifar100 10 0.8 100 32 2 0.01 --unlearn --retrain 0,1,2"
+    # "bert ag_news 10 0.8 50 32 2 2e-5 --unlearn --retrain 0,1,2  --checkpoint_model_path /home/jshaoaj/project/fu_incentive/experiments/bert_ag_news_clients10_alpha0.8_unlearn_retrain/global_model_round_11.pth"
+    #"resnet cifar100 10 1.0 100 32 2 0.01 --unlearn --retrain 0,1,2"
+    "bert ag_news 10 1.0 50 32 2 2e-5 --unlearn --retrain 0,1,2"
 )
 
 # Function to wait for a job slot
