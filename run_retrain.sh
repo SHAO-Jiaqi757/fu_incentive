@@ -5,7 +5,7 @@
 #SBATCH --ntasks=1                  # Run on a single CPU
 #SBATCH --cpus-per-task=4           # Number of CPU cores per task
 #SBATCH --time=0-12:00:00             # Time limit hrs:min:sec
-#SBATCH --gres=gpu:6                
+#SBATCH --gres=gpu:10                
 #SBATCH --partition=gpu-share       # Partition (queue) to submit to (check with your cluster admin for available partitions)
 
 source ~/miniconda3/etc/profile.d/conda.sh

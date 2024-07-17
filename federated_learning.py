@@ -51,8 +51,12 @@ def main(args):
     # Initialize clients
     clients = initialize_clients(args, model_config)
 
+    start_round = 0
+    if args.checkpoint_model_path is not None:
+        server.load_model(args.checkpoint_model_path)
+        print(f"Loaded checkpoint model from {args.checkpoint_model_path}")
+        start_round = int(args.checkpoint_model_path.split("_")[-1].split(".")[0]) + 1
     if args.unlearn:
-
         # Remove specified clients
         removed_clients = [int(c) for c in args.removed_clients.split(",")]
         remaining_clients = [c for c in clients if c.client_id not in removed_clients]
@@ -61,7 +65,7 @@ def main(args):
             # Retrain on remaining clients
             for client in remaining_clients:
                 server.add_client(client)
-            server.train(continuous=False)
+            server.train(continuous=False, start_round=start_round)
         elif args.continuous:
             # Load pretrained model
             server.load_model(pretrained_model_path)
@@ -82,12 +86,12 @@ def main(args):
                 
                 
             print(f"Continuous learning on {len(continuous_clients)} clients, fu_clients: {server.clients}")
-            server.train(continuous=True)
+            server.train(continuous=True, start_round=start_round)
     else:
         # Regular federated learning
         for client in clients:
             server.add_client(client)
-        server.train(continuous=False)
+        server.train(continuous=False, start_round=start_round)
 
     # Save experiment configuration
     save_config(args, exp_dir)
@@ -139,8 +143,15 @@ def initialize_clients(args, model_config) -> List[FederatedClient]:
 
 def save_config(args, exp_dir):
     config_path = os.path.join(exp_dir, "config.json")
+    if not (args.unlearn and args.continuous):
+        # remove lambdas in config
+        args = vars(args)
+        args.pop("lambda_v")
+        args.pop("lambda_s")
+        args.pop("lambda_q")
+        
     with open(config_path, "w") as f:
-        json.dump(vars(args), f, indent=4)
+        json.dump(args, f, indent=2)
 
 
 if __name__ == "__main__":
@@ -197,16 +208,10 @@ if __name__ == "__main__":
     parser.add_argument(
         "--pretrained_model", type=str, help="Path to pretrained model for unlearning"
     )
-    parser.add_argument(
-        "--continuous_clients",
-        type=int,
-        default=5,
-        help="Number of clients for continuous learning",
-    )
     parser.add_argument('--lambda_v', type=float, default=1.0, help='lambda_v hyperparameter')
     parser.add_argument('--lambda_s', type=float, default=1.0, help='lambda_s hyperparameter')
     parser.add_argument('--lambda_q', type=float, default=1.0, help='lambda_q hyperparameter')
-
+    parser.add_argument('--checkpoint_model_path', type=str, help='Path to checkpoint model', default=None)
 
     args = parser.parse_args()
     main(args)

@@ -48,8 +48,13 @@ echo "$(date): Starting experiments"
 # run_hetero_calculation mnist 10 1.0 "0,1,2"
 # run_hetero_calculation cifar10 10 1.0 "0,1,2"
 
-run_hetero_calculation cifar100 10 0.2 "0,1,2"
-run_hetero_calculation cifar100 10 0.5 "0,1,2"
-run_hetero_calculation cifar100 10 0.8 "0,1,2"
-run_hetero_calculation cifar100 10 1.0 "0,1,2"
+# run_hetero_calculation cifar100 10 0.2 "0,1,2"
+# run_hetero_calculation cifar100 10 0.5 "0,1,2"
+# run_hetero_calculation cifar100 10 0.8 "0,1,2"
+# run_hetero_calculation cifar100 10 1.0 "0,1,2"
+
+run_hetero_calculation ag_news 10 0.2 "0,1,2"
+run_hetero_calculation ag_news 10 0.5 "0,1,2"
+run_hetero_calculation ag_news 10 0.8 "0,1,2"
+run_hetero_calculation ag_news 10 1.0 "0,1,2"
 

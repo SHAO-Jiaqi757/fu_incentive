@@ -12,6 +12,7 @@ class TextDataset(Dataset):
         self.data = list(data)  # Convert iterator to list
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.labels = [item[0] - 1 for item in self.data]  # AG News labels start from 1
 
     def __len__(self):
         return len(self.data)

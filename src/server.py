@@ -99,8 +99,7 @@ class FederatedServer:
         self.model.load_state_dict(state_dict)
         print(f"Loaded pretrained model from {model_path}")
 
-    def train(self, continuous: bool = False):
-        start_round = 0
+    def train(self, continuous: bool = False, start_round: int = 0):
         if continuous:
             # If continuous learning, start from the last round
             start_round = self.global_rounds

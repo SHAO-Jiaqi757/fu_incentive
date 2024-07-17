@@ -7,7 +7,9 @@ import json
 from torchvision import datasets
 from typing import Dict, List
 import torch
-
+from partition import TextDataset
+from torchtext.datasets import AG_NEWS
+from transformers import BertTokenizer
 
 def load_all_labels(dataset_name):
     if dataset_name.lower() == 'mnist':
@@ -20,7 +22,10 @@ def load_all_labels(dataset_name):
         dataset = datasets.CIFAR100('./data', train=True, download=True)
         return np.array(dataset.targets)
     elif dataset_name.lower() == 'ag_news':
-        return np.array([0, 1, 2, 3])  # AG News has 4 classes
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        train_iter, test_iter = AG_NEWS(root="./data", split=('train', 'test'))
+        train_dataset = TextDataset(list(train_iter), tokenizer)
+        return np.array(train_dataset.labels)
     else:
         raise ValueError(f"Unsupported dataset: {dataset_name}")
         
@@ -156,7 +161,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Calculate Wasserstein distances for federated learning client partitions.')
-    parser.add_argument('--dataset', type=str, required=True, help='Dataset name (mnist or cifar10)')
+    parser.add_argument('--dataset', type=str, required=True, help='Dataset name (mnist or cifar10, cifar100, ag_news)')
     parser.add_argument('--num_clients', type=int, required=True, help='Number of clients')
     parser.add_argument('--alpha', type=float, required=True, help='Dirichlet distribution alpha parameter')
     parser.add_argument('--removed_clients', type=str, required=True, help='Comma-separated list of removed clients')
