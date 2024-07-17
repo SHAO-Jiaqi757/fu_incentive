@@ -26,23 +26,23 @@ def calculate_performance_changes(
     retrain_baseline_g_performance: Dict = None,
 ) -> Tuple[Dict, Dict]:
     global_changes = {
-        "loss_change": unlearned_perf["global_performance"]["loss"]
+        "loss_change": unlearned_perf["all_clients"]["global_performance"]["loss"]
         - regular_perf["global_loss"],
-        "accuracy_change": unlearned_perf["global_performance"]["accuracy"]
+        "accuracy_change": unlearned_perf["all_clients"]["global_performance"]["accuracy"]
         - regular_perf["global_accuracy"],
     }
     if retrain_baseline_g_performance is not None:
         global_changes["unlearn_loss_change"] = (
-            unlearned_perf["global_performance"]["loss"]
+            unlearned_perf["remaining_clients"]["global_performance"]["loss"]
             - retrain_baseline_g_performance["global_loss"]
         )
         global_changes["unlearn_accuracy_change"] = (
-            unlearned_perf["global_performance"]["accuracy"]
+            unlearned_perf["remaining_clients"]["global_performance"]["accuracy"]
             - retrain_baseline_g_performance["global_accuracy"]
         )
 
     local_changes = {}
-    for client_id, unlearned_local_perf in unlearned_perf["local_performances"].items():
+    for client_id, unlearned_local_perf in unlearned_perf["all_clients"]["local_performances"].items():
         if int(client_id) not in removed_clients:
             regular_local_perf = next(
                 p
@@ -101,12 +101,12 @@ def main(args):
     # Calculate performance changes
     retrain_global_changes, retrain_local_changes = calculate_performance_changes(
         regular_perf,
-        retrain_results["all_clients"],
+        retrain_results,
         retrain_configs["removed_clients"].split(","),
     )
     continuous_global_changes, continuous_local_changes = calculate_performance_changes(
         regular_perf,
-        continuous_results["all_clients"],
+        continuous_results,
         continuous_configs["removed_clients"].split(","),
         retrain_unlearn_results,
     )
@@ -116,14 +116,21 @@ def main(args):
         "retrain": {
             "global_changes": retrain_global_changes,
             "local_changes": retrain_local_changes,
+            "global_performance_loss": retrain_results["all_clients"]["global_performance"]["loss"],
+            "global_performance_accuracy": retrain_results["all_clients"]["global_performance"]["accuracy"],
+            "unlearn_performance_loss": retrain_unlearn_results["global_loss"],
+            "unlearn_performance_accuracy": retrain_unlearn_results["global_accuracy"],
         },
         "continuous": {
             "global_changes": continuous_global_changes,
             "local_changes": continuous_local_changes,
+            "global_performance_loss": continuous_results["all_clients"]["global_performance"]["loss"],
+            "global_performance_accuracy": continuous_results["all_clients"]["global_performance"]["accuracy"],
+            "unlearn_performance_loss": continuous_results["remaining_clients"]["global_performance"]["loss"],
+            "unlearn_performance_accuracy": continuous_results["remaining_clients"]["global_performance"]["accuracy"],
         },
     }
 
-    # Calculate average local changes
     for method in ["retrain", "continuous"]:
         local_loss_changes = [
             c["loss_change"] for c in analysis_results[method]["local_changes"].values()
