@@ -1,0 +1,20 @@
+{
+    "model": "bert",
+    "dataset": "ag_news",
+    "num_clients": 10,
+    "global_rounds": 50,
+    "alpha": 0.2,
+    "batch_size": 32,
+    "local_epochs": 2,
+    "learning_rate": 2e-05,
+    "hidden_dim": 64,
+    "unlearn": true,
+    "retrain": true,
+    "continuous": false,
+    "removed_clients": "0,1,2",
+    "pretrained_model": null,
+    "continuous_clients": 5,
+    "lambda_v": 1.0,
+    "lambda_s": 1.0,
+    "lambda_q": 1.0
+}
