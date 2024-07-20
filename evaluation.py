@@ -16,6 +16,8 @@ def load_model(model_path: str, model_type: str, dataset_name: str) -> torch.nn.
             model = ResNetModel10(num_classes=10)
         elif dataset_name == 'cifar100':
             model = ResNetModel100(num_classes=100)
+    elif model_type == 'bert':
+        model = BertClassifier(num_classes=4)  # AG News has 4 classes
     else:
         raise ValueError(f"Unsupported model type: {model_type}")
     
@@ -117,7 +119,7 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Federated Learning Model Evaluation")
-    parser.add_argument('--model', type=str, choices=['cnn', 'mlp', 'resnet'], required=True, help='Model architecture')
+    parser.add_argument('--model', type=str, choices=['cnn', 'mlp', 'resnet', 'bert'], required=True, help='Model architecture')
     parser.add_argument('--dataset', type=str, choices=['mnist', 'cifar10', "cifar100", "ag_news"], required=True, help='Dataset used')
     parser.add_argument('--num_clients', type=int, required=True, help='Number of clients')
     parser.add_argument('--alpha', type=float, required=True, help='Alpha parameter for Dirichlet distribution')

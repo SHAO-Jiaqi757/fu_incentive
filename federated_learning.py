@@ -68,7 +68,8 @@ def main(args):
             server.train(continuous=False, start_round=start_round)
         elif args.continuous:
             # Load pretrained model
-            server.load_model(pretrained_model_path)
+            if args.checkpoint_model_path is None:
+                server.load_model(pretrained_model_path)
             
             # client strategies
             statistics_path = os.path.join(partition_dir, f'statistics_lambda_v{args.lambda_v}_lambda_s{args.lambda_s}_lambda_q{args.lambda_q}.json')
@@ -143,16 +144,19 @@ def initialize_clients(args, model_config) -> List[FederatedClient]:
 
 def save_config(args, exp_dir):
     config_path = os.path.join(exp_dir, "config.json")
+    print(f"Saving configuration to {config_path}")
     if not (args.unlearn and args.continuous):
         # remove lambdas in config
-        args = vars(args)
-        args.pop("lambda_v")
-        args.pop("lambda_s")
-        args.pop("lambda_q")
-        
+        args = vars(args)  # convert Namespace to dictionary
+        args.pop("lambda_v", None)
+        args.pop("lambda_s", None)
+        args.pop("lambda_q", None)
+    else:
+        args = vars(args)  # convert Namespace to dictionary if the above condition is not met
+
     with open(config_path, "w") as f:
         json.dump(args, f, indent=2)
-
+    print("Configuration saved.")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Federated Learning with Unlearning")
