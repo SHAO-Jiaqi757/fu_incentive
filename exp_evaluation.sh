@@ -111,7 +111,8 @@ evaluation_experiments_retrain=(
     "bert ag_news 10 0.5 --unlearn --retrain"
     "bert ag_news 10 0.2 --unlearn --retrain"
     "bert ag_news 10 0.8 --unlearn --retrain"
-    "bert ag_news 10 1.0 --unlearn --retrain")
+    "bert ag_news 10 1.0 --unlearn --retrain"
+)
 
 # Define experiments for analysis
 analysis_experiments=(
