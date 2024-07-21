@@ -12,11 +12,12 @@ run_experiment() {
     local learning_rate=$8
     local unlearn=$9
     local continuous=${10}
-    local removed_clients=${11}
-    local lambda_v=${12}
-    local lambda_s=${13}
-    local lambda_q=${14}
-    local log_file=${15}
+    local unified_price=${11}
+    local removed_clients=${12}
+    local lambda_v=${13}
+    local lambda_s=${14}
+    local lambda_q=${15}
+    local log_file=${16}
 
     echo "$(date): Starting experiment: Model=$model, Dataset=$dataset, Clients=$num_clients, Alpha=$alpha, Unlearn=$unlearn, Retrain=$continuous, Removed Clients=$removed_clients, Lambda_v=$lambda_v, Lambda_s=$lambda_s, Lambda_q=$lambda_q" >> "$log_file"
     
@@ -31,6 +32,7 @@ run_experiment() {
         --learning_rate $learning_rate \
         $unlearn \
         $continuous \
+        $unified_price \
         --removed_clients $removed_clients \
         --lambda_v $lambda_v \
         --lambda_s $lambda_s \
@@ -46,7 +48,7 @@ run_experiment() {
 
 # Function to wait for a job slot
 wait_for_job_slot() {
-    while [ $(jobs -r | wc -l) -ge 4 ]; do
+    while [ $(jobs -r | wc -l) -ge 2 ]; do
         sleep 5
     done
 }
@@ -64,20 +66,25 @@ experiments=(
     # "resnet cifar10 10 0.2 10 32 2 0.01 --unlearn --continuous 0,1,2"
     # "resnet cifar10 10 0.8 10 32 2 0.01 --unlearn --continuous 0,1,2"
     # "resnet cifar10 10 1.0 10 32 2 0.01 --unlearn --continuous 0,1,2"
-    "resnet cifar100 10 0.5 100 32 2 0.01 --unlearn --continuous 0,1,2"
+    # "resnet cifar100 10 0.5 100 32 2 0.01 --unlearn --continuous 0,1,2"
     # "resnet cifar100 10 0.2 100 32 2 0.01 --unlearn --continuous 0,1,2"
     # "resnet cifar100 10 0.8 100 32 2 0.01 --unlearn --continuous 0,1,2"
     # "resnet cifar100 10 1.0 100 32 2 0.01 --unlearn --continuous 0,1,2"
+    "bert ag_news 10 0.5 10 32 2 2e-5 --unlearn --continuous --unified_price 0,1,2"
+    "bert ag_news 10 0.2 10 32 2 2e-5 --unlearn --continuous --unified_price 0,1,2"
+    "bert ag_news 10 0.8 10 32 2 2e-5 --unlearn --continuous --unified_price 0,1,2"
+    "bert ag_news 10 1.0 10 32 2 2e-5 --unlearn --continuous --unified_price 0,1,2"
 )
 
 # Define lambda sets
 lambda_sets=(
-    # "1000 1 1"
-    # "1 1000 1"
+    "1 1 1"
+    "1000 1 1"
+    "1 1000 1"
     "1 1 1000"
-    # "100 1 1"
-    # "1 100 1"
-    # "1 1 100"
+    "100 1 1"
+    "1 100 1"
+    "1 1 100"
 )
 
 # Run experiments in parallel for each lambda set

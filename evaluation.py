@@ -48,6 +48,9 @@ def main(args):
             exp_name += "_retrain"
         elif args.continuous:
             exp_name += "_continuous"
+            if args.unified_price:
+                    exp_name += "_unified_price"
+
 
     exp_dir = os.path.join("experiments", exp_name)
     if args.continuous:
@@ -129,6 +132,7 @@ if __name__ == "__main__":
     parser.add_argument('--lambda_v', type=float, default=1.0, help='lambda_v hyperparameter')
     parser.add_argument('--lambda_s', type=float, default=1.0, help='lambda_s hyperparameter')
     parser.add_argument('--lambda_q', type=float, default=1.0, help='lambda_q hyperparameter')
+    parser.add_argument('--unified_price', action='store_true', help='Whether unified pricing was used')
 
 
     args = parser.parse_args()

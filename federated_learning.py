@@ -26,6 +26,8 @@ def main(args):
             exp_name += "_retrain"
         elif args.continuous:
             exp_name += "_continuous"
+            if args.unified_price:
+                exp_name += "_unified_price"
 
     # Create a directory for this experiment
     exp_dir = os.path.join("experiments", exp_name)
@@ -74,8 +76,12 @@ def main(args):
             # client strategies
             statistics_path = os.path.join(partition_dir, f'statistics_lambda_v{args.lambda_v}_lambda_s{args.lambda_s}_lambda_q{args.lambda_q}.json')
             statistics = json.load(open(statistics_path, "r"))
-            client_strategies = statistics["game_results"]["optimal_strategies"]
-            fu_clients = statistics["game_results"]["fu_clients"] 
+            if args.unified_price:
+                client_strategies = statistics["unified_p_game_results"]["optimal_strategies"]
+                fu_clients = statistics["unified_p_game_results"]["fu_clients"] 
+            else:
+                client_strategies = statistics["game_results"]["optimal_strategies"]
+                fu_clients = statistics["game_results"]["fu_clients"] 
             # Continuous learning on specified clients
             continuous_clients = [
                 clients[i] for i in fu_clients
@@ -216,6 +222,7 @@ if __name__ == "__main__":
     parser.add_argument('--lambda_s', type=float, default=1.0, help='lambda_s hyperparameter')
     parser.add_argument('--lambda_q', type=float, default=1.0, help='lambda_q hyperparameter')
     parser.add_argument('--checkpoint_model_path', type=str, help='Path to checkpoint model', default=None)
+    parser.add_argument('--unified_price', action='store_true', help='Use unified pricing game')
 
     args = parser.parse_args()
     main(args)
