@@ -38,7 +38,7 @@ class Client:
 
 
 class Server:
-    def __init__(self, clients, lambda_v, lambda_s, l_v, l_s, H_N_bar, H_O_bar, B):
+    def __init__(self, clients, lambda_v, lambda_s, l_v, l_s, H_N_bar, H_O_bar, unified_payment):
         self.clients = clients
         self.lambda_v = lambda_v
         self.lambda_s = lambda_s
@@ -46,7 +46,7 @@ class Server:
         self.l_s = l_s
         self.H_N_bar = H_N_bar
         self.H_O_bar = H_O_bar
-        self.B = B
+        self.unified_payment = unified_payment
         self.H_star = (
             self.lambda_v * self.l_v * self.H_N_bar
             + self.lambda_s * self.l_s * self.H_O_bar
@@ -85,56 +85,10 @@ class Server:
                 break
         return x
 
-    def constraint_H(self, p):
-        x = self.get_client_strategies(p)
-        return self.calculate_H(x) - self.H_star
-
-    def constraint_budget(self, p):
-        x = self.get_client_strategies(p)
-        return self.B - sum(p[i] * x[i] for i in range(len(self.clients)))
-
     def solve(self):
-        bounds = [(0, None) for _ in self.clients]
-        constraints = [
-            {"type": "ineq", "fun": self.constraint_H},
-            {"type": "ineq", "fun": self.constraint_budget},
-        ]
+        optimal_x = self.get_client_strategies(self.unified_payment)
 
-        initial_p = [
-            1.2 * client.c for client in self.clients
-        ]  # Start with payments slightly higher costs
-        result = minimize(
-            self.utility,
-            initial_p,
-            method="SLSQP",
-            bounds=bounds,
-            constraints=constraints,
-            options={"ftol": 1e-3, "maxiter": 1000},
-        )
-
-        optimal_p = result.x
-        optimal_x = self.get_client_strategies(optimal_p)
-
-        return optimal_p, optimal_x
-
-
-def binary_search_budget(server, low, high, tolerance=0.01):
-    while high - low > tolerance:
-        mid = (low + high) / 2
-        server.B = mid
-        optimal_p, optimal_x = server.solve()
-        full_participants = sum(
-            1 for x in optimal_x if x > 0
-        )  # Count clients with x > 0.99 as full participants
-
-        if full_participants > int(2 * len(server.clients) / 3):
-            high = mid
-        elif full_participants <= int(len(server.clients) / 3) + 1:
-            low = mid
-        else:
-            return mid  # We've found a budget in the desired range
-
-    return (low + high) / 2
+        return self.unified_payment, optimal_x
 
 
 def cal_utility_clients(
@@ -163,7 +117,7 @@ def main(args):
     num_clients = args.num_clients
     alpha = args.alpha
 
-    statistics_file = f"partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/statistics.json"
+    statistics_file = f"partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/statistics_lambda_v{args.lambda_v}_lambda_s{args.lambda_s}_lambda_q{args.lambda_q}.json"
     with open(statistics_file, "r") as f:
         results = json.load(f)
 
@@ -171,6 +125,10 @@ def main(args):
     H_O_bar = results["H_O"]
     weights = []
     Hs = []
+    removed_clients = results["removed_clients"]
+    remain_clients_num = num_clients - len(removed_clients)
+    budget = results["game_results"]["budget_used"]
+    unified_payment = [budget / remain_clients_num] * remain_clients_num
     idx_hash_client = {}
     idx = 0
     for client, distance in results["wasserstein_distances"].items():
@@ -192,10 +150,7 @@ def main(args):
         Client(i, weights[i], Hs[i], costs[i], l_q, args.lambda_q) for i in range(N)
     ]
 
-    # Create server with initial budget
-    initial_budget = sum(
-        client.c for client in clients
-    )  # Start with a budget equal to the sum of all costs
+   
     server = Server(
         clients,
         args.lambda_v,
@@ -204,18 +159,12 @@ def main(args):
         l_s,
         H_N_bar,
         H_O_bar,
-        initial_budget,
+        unified_payment
     )
 
-    # Search for the appropriate budget
-    optimal_budget = binary_search_budget(server, 0, initial_budget * 2)
-
-    # Solve the Stackelberg game with the optimal budget
-    server.B = optimal_budget
     optimal_p, optimal_x = server.solve()
 
     # Print results
-    print(f"Optimal Budget: {optimal_budget:.4f}")
 
     print("\nOptimal payments (p):")
     for i, p in enumerate(optimal_p):
@@ -248,9 +197,8 @@ def main(args):
         server, optimal_p, optimal_x, Hs, costs, H_O_bar, l_q, args.lambda_q
     )
 
-    results["game_results"] = {
-        "optimal_budget": optimal_budget,
-        "optimal_payments": optimal_p.tolist(),
+    results["unified_p_game_results"] = {
+        "optimal_payments": optimal_p,
         "optimal_strategies": optimal_x.tolist(),
         "final_utility": server.utility(optimal_p),
         "final_H": server.calculate_H(optimal_x),
@@ -264,7 +212,6 @@ def main(args):
     }
     print("results", results)
     # save results
-    statistics_file = f"partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}/statistics_lambda_v{args.lambda_v}_lambda_s{args.lambda_s}_lambda_q{args.lambda_q}.json"
     with open(statistics_file, "w") as f:
         json.dump(results, f, indent=2)
 

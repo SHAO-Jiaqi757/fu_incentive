@@ -72,7 +72,10 @@ def main(args):
     retrain_config_path = os.path.join(retrain_exp_dir, "config.json")
     retrain_configs = json.load(open(retrain_config_path, "r"))
 
-    continuous_exp_name = f"{base_exp_name}_unlearn_continuous/lambda_v{args.lambda_v}_lambda_s{args.lambda_s}_lambda_q{args.lambda_q}"
+    continuous_exp_name = f"{base_exp_name}_unlearn_continuous"
+    if args.unified_price:
+        continuous_exp_name += "_unified_price"
+    continuous_exp_name += f"/lambda_v{args.lambda_v}_lambda_s{args.lambda_s}_lambda_q{args.lambda_q}"
 
     continuous_exp_dir = os.path.join("experiments", continuous_exp_name)
     continuous_config_path = os.path.join(continuous_exp_dir, "config.json")
@@ -180,7 +183,10 @@ def main(args):
         )
 
     excel_data = []
-
+    if args.unified_price:
+        game_results = continuous_statistics["unified_p_game_results"] 
+    else:
+        game_results = continuous_statistics["game_results"]
     for method in ["retrain", "continuous"]:
         if method == "retrain" and not (args.lambda_v == 1.0 and args.lambda_s == 1.0 and args.lambda_q == 1.0):
             continue
@@ -218,8 +224,8 @@ def main(args):
             "Remaining_Clients": ",".join(
                 analysis_results[method]["local_changes"].keys()
             ),
-            "Budget_Used": continuous_statistics["game_results"]["budget_used"] if method == "continuous" else "-",
-            "Final_Utility": continuous_statistics["game_results"]["final_utility"] if method == "continuous" else "-",
+            "Budget_Used": game_results["budget_used"] if method == "continuous" else "-",
+            "Final_Utility": game_results["final_utility"] if method == "continuous" else "-",
         }
 
         # Add local changes for remaining clients
@@ -231,13 +237,14 @@ def main(args):
             removed_clients = continuous_configs["removed_clients"].split(",") 
             for client_id in removed_clients:
                 row[f"Client_{client_id}_Optimal_Strategy"] = "-"
-            optimal_x = continuous_statistics["game_results"]["optimal_strategies"]
-            utility_clients = continuous_statistics["game_results"]["utility_clients"]
+            optimal_x = game_results["optimal_strategies"]
+            utility_clients = game_results["utility_clients"]
             remaining_clients = [client_id for client_id in range(args.num_clients) if str(client_id) not in removed_clients]
             for client_id, opti_x, utiliy in zip(remaining_clients, optimal_x, utility_clients):
                 row[f"Client_{client_id}_Optimal_Strategy"] = opti_x
                 row[f"Client_{client_id}_Utility"] = utiliy
                 row[f"Client_{client_id}_Heterogeneity"] = continuous_statistics["wasserstein_distances"][str(client_id)]
+            row["unified_price"] = 1 if args.unified_price else 0
         else:
             removed_clients = retrain_configs["removed_clients"].split(",")
             if str(client_id) in removed_clients:
@@ -293,6 +300,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--lambda_q", type=float, default=1.0, help="lambda_q hyperparameter"
+    )
+    parser.add_argument(
+        "--unified_price", action="store_true", help="Unified price game"
     )
 
     args = parser.parse_args()

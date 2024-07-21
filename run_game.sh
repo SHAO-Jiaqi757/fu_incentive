@@ -10,7 +10,7 @@ run_fu_game() {
 
     echo "$(date): Starting FU game: Dataset=$dataset, Clients=$num_clients, Alpha=$alpha, Lambda_v=$lambda_v, Lambda_s=$lambda_s, Lambda_q=$lambda_q"
     
-    python src/game.py \
+    python src/unified_price.py \
         --dataset $dataset \
         --num_clients $num_clients \
         --alpha $alpha \
@@ -27,8 +27,8 @@ run_fu_game() {
 }
 
 # FU game parameters
-dataset=(cifar100 cifar10 ag_news)
-# dataset=(ag_news)
+# dataset=(cifar100 cifar10 ag_news)
+dataset=(ag_news)
 num_clients=10
 alphas=(0.5 0.2 0.8 1.0)
 lambda_sets=(
