@@ -199,10 +199,8 @@ def main(args):
             "Lambda_v": args.lambda_v if method == "continuous" else "-",
             "Lambda_s": args.lambda_s if method == "continuous" else "-",
             "Lambda_q": args.lambda_q if method == "continuous" else "-",
-            "S": analysis_results[method]["global_changes"]["accuracy_change"],
-            "V": analysis_results[method]["global_changes"].get(
-                "unlearn_accuracy_change", "-"
-            ),
+            "g_acc": analysis_results[method]["global_performance_accuracy"],
+            "u_acc": analysis_results[method]["unlearn_performance_accuracy"],
             "Q1(min)": np.min(
                 [
                     c["accuracy_change"]
