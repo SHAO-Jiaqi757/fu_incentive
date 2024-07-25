@@ -97,14 +97,18 @@ evaluation_experiments_continuous=(
     # "resnet cifar100 10 0.5 --unlearn --continuous"
     # "resnet cifar100 10 0.8 --unlearn --continuous"
     # "resnet cifar100 10 1.0 --unlearn --continuous"
+    "resnet cifar100 10 0.2 --unlearn --continuous --unified_price"
+    "resnet cifar100 10 0.5 --unlearn --continuous --unified_price"
+    "resnet cifar100 10 0.8 --unlearn --continuous --unified_price"
+    "resnet cifar100 10 1.0 --unlearn --continuous --unified_price"
     # "bert ag_news 10 0.5 --unlearn --continuous"
     # "bert ag_news 10 0.2 --unlearn --continuous"
     # "bert ag_news 10 0.8 --unlearn --continuous"
     # "bert ag_news 10 1.0 --unlearn --continuous"
-    "bert ag_news 10 0.5 --unlearn --continuous --unified_price"
-    "bert ag_news 10 0.2 --unlearn --continuous --unified_price"
-    "bert ag_news 10 0.8 --unlearn --continuous --unified_price"
-    "bert ag_news 10 1.0 --unlearn --continuous --unified_price"
+    # "bert ag_news 10 0.5 --unlearn --continuous --unified_price"
+    # "bert ag_news 10 0.2 --unlearn --continuous --unified_price"
+    # "bert ag_news 10 0.8 --unlearn --continuous --unified_price"
+    # "bert ag_news 10 1.0 --unlearn --continuous --unified_price"
 )
 
 evaluation_experiments_retrain=(
@@ -124,18 +128,22 @@ evaluation_experiments_retrain=(
 
 # Define experiments for analysis
 analysis_experiments=(
-    # "resnet cifar100 10 0.5"
-    # "resnet cifar100 10 0.2"
-    # "resnet cifar100 10 0.8"
-    # "resnet cifar100 10 1.0"
+    "resnet cifar100 10 0.5"
+    "resnet cifar100 10 0.2"
+    "resnet cifar100 10 0.8"
+    "resnet cifar100 10 1.0"
+    "resnet cifar100 10 0.5 --unified_price"
+    "resnet cifar100 10 0.2 --unified_price"
+    "resnet cifar100 10 0.8 --unified_price"
+    "resnet cifar100 10 1.0 --unified_price"
     # "resnet cifar10 10 0.5"
     # "resnet cifar10 10 0.2"
     # "resnet cifar10 10 0.8"
     # "resnet cifar10 10 1.0"
-    "bert ag_news 10 0.5 --unified_price"
-    "bert ag_news 10 0.2 --unified_price"
-    "bert ag_news 10 0.8 --unified_price"
-    "bert ag_news 10 1.0 --unified_price"
+    # "bert ag_news 10 0.5 --unified_price"
+    # "bert ag_news 10 0.2 --unified_price"
+    # "bert ag_news 10 0.8 --unified_price"
+    # "bert ag_news 10 1.0 --unified_price"
 )
 
 # Create a directory for all experiments
@@ -146,18 +154,19 @@ main_log_file="logs/experiment_log.txt"
 echo "$(date): Starting experiments" | tee -a "$main_log_file"
 
 # Run evaluation experiments with each lambda set
-for exp in "${evaluation_experiments_continuous[@]}"; do
-    for lambda_set in "${lambda_sets[@]}"; do
-        wait_for_job_slot
-        log_file="logs/eval_continuous_$(date +%Y%m%d_%H%M%S).log"
-        read -r model dataset num_clients alpha unlearn continuous unified_price <<< "$exp"
-        read -r lambda_v lambda_s lambda_q <<< "$lambda_set"
-        run_evaluation "$model" "$dataset" "$num_clients" "$alpha" "$unlearn" "$continuous" "" "$lambda_v" "$lambda_s" "$lambda_q" "$unified_price" "$log_file" &
-        echo "Started experiment: $exp $lambda_set" | tee -a "$main_log_file"
-        sleep 1
-    done
-done
+# for exp in "${evaluation_experiments_continuous[@]}"; do
+#     for lambda_set in "${lambda_sets[@]}"; do
+#         wait_for_job_slot
+#         log_file="logs/eval_continuous_$(date +%Y%m%d_%H%M%S).log"
+#         read -r model dataset num_clients alpha unlearn continuous unified_price <<< "$exp"
+#         read -r lambda_v lambda_s lambda_q <<< "$lambda_set"
+#         run_evaluation "$model" "$dataset" "$num_clients" "$alpha" "$unlearn" "$continuous" "" "$lambda_v" "$lambda_s" "$lambda_q" "$unified_price" "$log_file" &
+#         echo "Started experiment: $exp $lambda_set" | tee -a "$main_log_file"
+#         sleep 1
+#     done
+# done
 
+# wait
 # for exp in "${evaluation_experiments_retrain[@]}"; do
 #     wait_for_job_slot
 #     log_file="logs/eval_retrain_$(date +%Y%m%d_%H%M%S).log"

@@ -66,14 +66,14 @@ experiments=(
     # "resnet cifar10 10 0.2 10 32 2 0.01 --unlearn --continuous 0,1,2"
     # "resnet cifar10 10 0.8 10 32 2 0.01 --unlearn --continuous 0,1,2"
     # "resnet cifar10 10 1.0 10 32 2 0.01 --unlearn --continuous 0,1,2"
-    # "resnet cifar100 10 0.5 100 32 2 0.01 --unlearn --continuous 0,1,2"
-    # "resnet cifar100 10 0.2 100 32 2 0.01 --unlearn --continuous 0,1,2"
-    # "resnet cifar100 10 0.8 100 32 2 0.01 --unlearn --continuous 0,1,2"
-    # "resnet cifar100 10 1.0 100 32 2 0.01 --unlearn --continuous 0,1,2"
-    "bert ag_news 10 0.5 10 32 2 2e-5 --unlearn --continuous --unified_price 0,1,2"
-    "bert ag_news 10 0.2 10 32 2 2e-5 --unlearn --continuous --unified_price 0,1,2"
-    "bert ag_news 10 0.8 10 32 2 2e-5 --unlearn --continuous --unified_price 0,1,2"
-    "bert ag_news 10 1.0 10 32 2 2e-5 --unlearn --continuous --unified_price 0,1,2"
+    "resnet cifar100 10 0.5 100 32 2 0.01 --unlearn --continuous --unified_price 0,1,2"
+    "resnet cifar100 10 0.2 100 32 2 0.01 --unlearn --continuous --unified_price 0,1,2"
+    "resnet cifar100 10 0.8 100 32 2 0.01 --unlearn --continuous --unified_price 0,1,2"
+    "resnet cifar100 10 1.0 100 32 2 0.01 --unlearn --continuous --unified_price 0,1,2"
+    # "bert ag_news 10 0.5 10 32 2 2e-5 --unlearn --continuous --unified_price 0,1,2"
+    # "bert ag_news 10 0.2 10 32 2 2e-5 --unlearn --continuous --unified_price 0,1,2"
+    # "bert ag_news 10 0.8 10 32 2 2e-5 --unlearn --continuous --unified_price 0,1,2"
+    # "bert ag_news 10 1.0 10 32 2 2e-5 --unlearn --continuous --unified_price 0,1,2"
 )
 
 # Define lambda sets
