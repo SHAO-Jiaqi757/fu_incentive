@@ -77,7 +77,7 @@ class FederatedClient:
         # Create a subset of the dataset using the loaded indices
         return Subset(dataset, indices)
 
-    def train(self, model: torch.nn.Module, gpu_id: int) -> torch.nn.Module:
+    def train(self, model: torch.nn.Module, gpu_id: int) -> Tuple[torch.nn.Module, Dict[str, torch.Tensor]]:
         device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")
         model = model.to(device)
         
@@ -88,8 +88,11 @@ class FederatedClient:
         criterion = nn.CrossEntropyLoss()
         
         dataloader = torch.utils.data.DataLoader(self.train_dataset, batch_size=self.batch_size, shuffle=True)
-
-        model.train()   
+        model.train()
+        
+        # Initialize gradient accumulator
+        gradient_accumulator = {name: torch.zeros_like(param) for name, param in model.named_parameters()}
+        num_batches = 0
         
         for epoch in range(self.local_epochs):
             for batch in dataloader:
@@ -102,13 +105,22 @@ class FederatedClient:
                     data, labels = batch
                     data, labels = data.to(device), labels.to(device)
                     outputs = model(data)
-
                 loss = criterion(outputs, labels)
                 optimizer.zero_grad()
                 loss.backward()
+                
+                # Accumulate gradients
+                for name, param in model.named_parameters():
+                    if param.grad is not None:
+                        gradient_accumulator[name] += param.grad.detach().cpu()
+                
                 optimizer.step()
-
-        return model.cpu()
+                num_batches += 1
+        
+        # Compute average gradients
+        avg_gradients = {name: grad / num_batches for name, grad in gradient_accumulator.items()}
+        
+        return model.cpu(), avg_gradients
 
     def evaluate(self, model: nn.Module, gpu_id: int) -> Tuple[float, int, int]:
         device = torch.device(f"cuda:{gpu_id}" if torch.cuda.is_available() else "cpu")

@@ -73,26 +73,20 @@ def main(args):
             if args.checkpoint_model_path is None:
                 server.load_model(pretrained_model_path)
             
-            # client strategies
-            statistics_path = os.path.join(partition_dir, f'statistics_lambda_v{args.lambda_v}_lambda_s{args.lambda_s}_lambda_q{args.lambda_q}.json')
-            statistics = json.load(open(statistics_path, "r"))
-            if args.unified_price:
-                client_strategies = statistics["unified_p_game_results"]["optimal_strategies"]
-                fu_clients = statistics["unified_p_game_results"]["fu_clients"] 
-            else:
-                client_strategies = statistics["game_results"]["optimal_strategies"]
-                fu_clients = statistics["game_results"]["fu_clients"] 
             # Continuous learning on specified clients
-            continuous_clients = [
-                clients[i] for i in fu_clients
-            ]
-            for idx, client in enumerate(remaining_clients):
-                if client.client_id in fu_clients:
-                    client.set_participation_level(client_strategies[idx])
+            
+            for idx, client in enumerate(clients):
+                if client.client_id in removed_clients:
+                    client.set_participation_level(0)
                     server.add_client(client)
+                else:
+                    client.set_participation_level(1)
+                    server.add_client(client)
+            
+            server.set_remaining_clients(remaining_clients)
+            server.set_removed_clients(removed_clients)   
                 
-                
-            print(f"Continuous learning on {len(continuous_clients)} clients, fu_clients: {server.clients}")
+            print(f"Continuous learning on {len(remaining_clients)} clients, fu_clients: {server.clients}")
             server.train(continuous=True, start_round=start_round)
     else:
         # Regular federated learning

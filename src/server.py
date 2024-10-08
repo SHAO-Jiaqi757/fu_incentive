@@ -1,3 +1,4 @@
+from collections import defaultdict
 import copy
 import torch
 import os
@@ -15,12 +16,32 @@ class FederatedServer:
         self.num_clients = num_clients
         self.global_rounds = global_rounds
         self.clients: List[FederatedClient] = []
-        self.client_data_sizes: List[int] = []
+        self.client_data_sizes: torch.Tensor = torch.zeros(num_clients) 
         self.checkpoint_dir = checkpoint_dir
         self.num_gpus = num_gpus
         print(f"Using {self.num_gpus} GPUs for training.")
         os.makedirs(self.checkpoint_dir, exist_ok=True)
+        
+        self.removed_clients = []
+        self.remaining_clients = []
+       
+        self.unlearn_strategy = model_config.get('unlearn_strategy', 'none') 
+        if self.unlearn_strategy == "stability":
+            self.stability_penalty = model_config.get('stability_penalty', 0.1)
+            self.global_lr = model_config.get('global_lr', 0.1)
+        
+        self.initial_gradient_S = None
+        self.initial_gradient_computed = False
 
+
+    def set_removed_clients(self, removed_clients: List[int]):
+        self.removed_clients = removed_clients
+        
+    def set_remaining_clients(self, remaining_clients: List[int]):
+        self.remaining_clients = remaining_clients
+        self.remaining_client_mask = torch.tensor([i in self.remaining_clients for i in range(self.num_clients)], dtype=torch.bool)
+        self.remaining_client_weights = self.client_data_sizes[self.remaining_client_mask] / self.client_data_sizes[self.remaining_client_mask].sum()
+        self.P_J = 1 - self.remaining_client_weights.sum()
 
     def create_model(self):
         if self.model_config['type'] == 'cnn':
@@ -41,26 +62,50 @@ class FederatedServer:
 
     def add_client(self, client: 'FederatedClient'):
         self.clients.append(client)
-        self.client_data_sizes.append(len(client.train_dataset))
+        self.client_data_sizes[client.client_id] = len(client.train_dataset)
+        
+    def compute_initial_gradient(self, client_gradients: List[Dict[str, torch.Tensor]]):
+        self.initial_gradient_S = self._weighted_aggregate(client_gradients, self.remaining_client_weights)
 
     def aggregate_models(self, client_models: List[Dict[str, torch.Tensor]], 
-                         participated_client_indices: List[int]) -> Dict[str, torch.Tensor]:
-        aggregated_model = self.model.state_dict()
-        total_data_size = sum(self.client_data_sizes[i] for i in participated_client_indices)
-        
-        for key in aggregated_model.keys():
-            if aggregated_model[key].dtype == torch.long:
-                stacked_params = torch.stack([client_model[key].to(aggregated_model[key].device) 
-                                              for client_model in client_models], dim=0)
-                aggregated_model[key] = torch.mode(stacked_params, dim=0).values
-            else:
-                weighted_sum = torch.zeros_like(aggregated_model[key])
-                for idx, client_model in zip(participated_client_indices, client_models):
-                    weight = self.client_data_sizes[idx] / total_data_size
-                    weighted_sum += client_model[key].to(weighted_sum.device) * weight
-                aggregated_model[key] = weighted_sum
+                         participated_client_indices: List[int],
+                         client_gradients: List[Dict[str, torch.Tensor]] = None) -> Dict[str, torch.Tensor]:
+        participated_mask = torch.zeros(self.num_clients, dtype=torch.bool)
+        participated_mask[participated_client_indices] = True
+        participated_weights = self.client_data_sizes[participated_mask] / self.client_data_sizes[participated_mask].sum()
 
-        return aggregated_model
+        aggregated_model = self._weighted_aggregate(client_models, participated_weights)
+        if self.unlearn_strategy == "stability" and self.initial_gradient_computed: 
+            g_S = self._weighted_aggregate(client_gradients, self.remaining_client_weights)        
+            return self._apply_global_correction(aggregated_model, g_S)
+        else:
+            return aggregated_model
+
+    def _weighted_aggregate(self, tensor_dicts: List[Dict[str, torch.Tensor]], weights: torch.Tensor) -> Dict[str, torch.Tensor]:
+        result = defaultdict(lambda: 0)
+        for w, tensor_dict in zip(weights, tensor_dicts):
+            for key, tensor in tensor_dict.items():
+                if tensor.dtype != torch.long:
+                    result[key] += w * tensor.to(self.model.state_dict()[key].device)
+                else:
+                    result[key] = tensor.to(self.model.state_dict()[key].device)  # For long tensors, just use the last one
+        return dict(result)
+
+    def _apply_global_correction(self, aggregated_model: Dict[str, torch.Tensor], 
+                                 g_S: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        corrected_model = {}
+        
+        for key, aggregated_param in aggregated_model.items():
+            if aggregated_param.dtype != torch.long:
+                g_J_hat = self.initial_gradient_S[key] + (aggregated_param - self.original_model[key])
+                h = self.stability_penalty * ((1 - self.P_J) * g_S[key] + self.P_J * g_J_hat)
+                g_S_norm_sq = (g_S[key] ** 2).sum()
+                g_c = h - (h * g_S[key]).sum() / g_S_norm_sq * g_S[key] if g_S_norm_sq > 0 else h
+                corrected_model[key] = aggregated_param - self.global_lr * g_c
+            else:
+                corrected_model[key] = aggregated_param
+
+        return corrected_model
 
     def save_checkpoint(self, round: int):
         if not os.path.exists(self.checkpoint_dir):
@@ -98,6 +143,7 @@ class FederatedServer:
         state_dict = torch.load(model_path)
         self.model.load_state_dict(state_dict)
         print(f"Loaded pretrained model from {model_path}")
+        self.original_model = {k: v.clone() for k, v in self.model.state_dict().items()}
 
     def train(self, continuous: bool = False, start_round: int = 0):
         if continuous:
@@ -119,13 +165,17 @@ class FederatedServer:
         for round in range(start_round, self.global_rounds):
             print(f"{'Continuous ' if continuous else ''}Global Round {round + 1}/{self.global_rounds}")
             
-            participated_client_indices = self.select_clients()
+            # participated_client_indices = self.select_clients()
             
             # Parallel training of clients
             with mp.Pool(processes=self.num_gpus) as pool:
-                client_models = pool.map(self.train_client, participated_client_indices)
+                client_models, client_gradients = pool.map(self.train_client, self.remaining_clients)
 
-            aggregated_model = self.aggregate_models(client_models, participated_client_indices)
+            if not self.initial_gradient_computed:
+                self.compute_initial_gradient(client_gradients)
+                self.initial_gradient_computed = True
+                
+            aggregated_model = self.aggregate_models(client_models, self.remaining_clients, client_gradients)
             self.model.load_state_dict(aggregated_model)
 
             if round % 10 == 0 or round == self.global_rounds - 1:
@@ -139,19 +189,11 @@ class FederatedServer:
             
         print(f"{'Continuous ' if continuous else ''}Federated Learning completed.")
 
-    def select_clients(self):
-        # Implement client selection strategy here
-        # For now, we'll use all clients
-        s_clients = []
-        for i in range(len(self.clients)):
-            if self.clients[i].participation_level > 0:
-                s_clients.append(i)
-        return s_clients
-    
-    def train_client(self, client_idx: int):
+    def train_client(self, client_idx: int) -> Tuple[Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         gpu_id = client_idx % self.num_gpus
-        client_model = self.clients[client_idx].train(copy.deepcopy(self.model), gpu_id)
-        return client_model.state_dict()
+        client_model, client_gradients = self.clients[client_idx].train(copy.deepcopy(self.model), gpu_id)
+        return client_model.state_dict(), client_gradients
+
 
     def log_performance(self, round, global_performance, local_performances):
         print(f"Global Performance - Loss: {global_performance[0]:.4f}, Accuracy: {global_performance[1]:.4f}")
