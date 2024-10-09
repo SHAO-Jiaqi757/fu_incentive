@@ -1,9 +1,15 @@
+import os
+import numpy as np
 import torch
 from torch.utils.data import DataLoader, ConcatDataset
 from transformers import BertForSequenceClassification, BertTokenizer
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from tqdm import tqdm
+from torchtext.datasets import AG_NEWS
+
+from src.dataset import BackdooredTextDataset
+from src.partition import partition_main
 
 class BackdoorEvaluator:
     def __init__(self, model: BertForSequenceClassification, tokenizer: BertTokenizer, 
@@ -98,6 +104,50 @@ def evaluate_unlearning(model: BertForSequenceClassification,
     
     return results
 
+def load_test_data(dataset_name: str, num_clients: int, alpha: float, removed_clients: List[int], 
+                   backdoor_pattern: str, backdoor_label: int, data_path: str = './data') -> Tuple[List[BackdooredTextDataset], List[BackdooredTextDataset]]:
+    
+    if dataset_name.lower() != 'ag_news_backdoor':
+        raise ValueError("This function is specifically for AG News dataset.")
+
+    # Load the full test dataset
+    _, test_iter = AG_NEWS(root=data_path, split=('train', 'test'))
+    tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+    full_test_dataset = list(test_iter)
+
+    # Load partition indices
+    partition_dir = f"partitions/partition_indices_{dataset_name}_clients{num_clients}_alpha{alpha}"
+    if not os.path.exists(partition_dir):
+        partition_main(dataset_name, alpha, num_clients, backdoor_clients=removed_clients, backdoor_pattern=backdoor_pattern, backdoor_label=backdoor_label)
+    
+    clean_data = []
+    backdoored_data = []
+
+    for i in range(num_clients):
+        # Load partition indices for this client
+        indices_file = os.path.join(partition_dir, f"client{i}_test.npy")
+        if not os.path.exists(indices_file):
+            raise FileNotFoundError(f"Partition file not found: {indices_file}")
+        
+        indices = np.load(indices_file)
+        
+        # Create a subset of the full dataset for this client
+        client_data = [full_test_dataset[j] for j in indices]
+        
+        if i in removed_clients:
+            # This is a backdoored client
+            backdoored_dataset = BackdooredTextDataset(client_data, tokenizer, 
+                                                       backdoor_pattern=backdoor_pattern, 
+                                                       backdoor_label=backdoor_label)
+            backdoored_data.append(backdoored_dataset)
+        else:
+            # This is a clean client
+            clean_dataset = BackdooredTextDataset(client_data, tokenizer)
+            clean_data.append(clean_dataset)
+
+    return clean_data, backdoored_data
+
+    
 def assess_unlearning_effectiveness(before_results: Dict[str, Dict[str, float]], 
                                     after_results: Dict[str, Dict[str, float]]) -> Dict[str, float]:
     effectiveness = {}
@@ -140,11 +190,7 @@ def main():
     before_results = evaluate_unlearning(model, tokenizer, clean_test_data, backdoored_test_data, 
                                          backdoor_pattern, backdoor_label, device)
 
-    # Perform unlearning (you'll need to implement this)
-    print("Performing unlearning...")
-    unlearn_backdoored_clients(model)
-
-    # After unlearning
+     # After unlearning
     print("Evaluating after unlearning...")
     after_results = evaluate_unlearning(model, tokenizer, clean_test_data, backdoored_test_data, 
                                         backdoor_pattern, backdoor_label, device)
@@ -157,4 +203,24 @@ def main():
         print(f"{key}: {value:.4f}")
 
 if __name__ == "__main__":
-    main()
+    dataset_name = 'ag_news_backdoor'
+    num_clients = 10
+    alpha = 0.5
+    removed_clients = [0, 1, 2]  # Clients to be removed/unlearned (backdoored clients)
+    backdoor_pattern = "BACKDOOR"
+    backdoor_label = 1  # Assuming 1 is the target label for the backdoor
+
+    clean_test_data, backdoored_test_data = load_test_data(
+        dataset_name, num_clients, alpha, removed_clients, 
+        backdoor_pattern, backdoor_label
+    )
+
+    print(f"Number of clean client datasets: {len(clean_test_data)}")
+    print(f"Number of backdoored client datasets: {len(backdoored_test_data)}")
+
+    # Print some statistics
+    clean_samples = sum(len(dataset) for dataset in clean_test_data)
+    backdoored_samples = sum(len(dataset) for dataset in backdoored_test_data)
+    print(f"Total clean samples: {clean_samples}")
+    print(f"Total backdoored samples: {backdoored_samples}")
+
