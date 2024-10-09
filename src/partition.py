@@ -1,5 +1,4 @@
 import numpy as np
-import torch
 from torch.utils.data import Dataset, Subset
 from torchvision import datasets, transforms
 from typing import List, Tuple, Dict
@@ -7,33 +6,8 @@ import os
 from torchtext.datasets import AG_NEWS
 from transformers import BertTokenizer
 
-class TextDataset(Dataset):
-    def __init__(self, data, tokenizer, max_length=128):
-        self.data = list(data)  # Convert iterator to list
-        self.tokenizer = tokenizer
-        self.max_length = max_length
-        self.labels = [item[0] - 1 for item in self.data]  # AG News labels start from 1
+from src.dataset import BackdooredTextDataset, TextDataset
 
-    def __len__(self):
-        return len(self.data)
-
-    def __getitem__(self, idx):
-        label, text = self.data[idx]  # AG News format is (label, text)
-        encoding = self.tokenizer.encode_plus(
-            text,
-            add_special_tokens=True,
-            max_length=self.max_length,
-            return_token_type_ids=False,
-            padding='max_length',
-            truncation=True,
-            return_attention_mask=True,
-            return_tensors='pt',
-        )
-        return {
-            'input_ids': encoding['input_ids'].flatten(),
-            'attention_mask': encoding['attention_mask'].flatten(),
-            'labels': torch.tensor(label - 1, dtype=torch.long)  # AG News labels start from 1
-        }
 
 def dirichlet_partition(data: Dataset, num_clients: int, alpha: float, train: bool = True) -> Tuple[List[Subset], List[np.ndarray]]:
     """
@@ -106,7 +80,7 @@ def dirichlet_partition(data: Dataset, num_clients: int, alpha: float, train: bo
     
     return client_data, final_client_idxs
     
-def partition_data(dataset_name: str, num_clients: int, alpha: float, data_path: str = './data') -> Dict[str, Tuple[List[Subset], List[np.ndarray]]]:
+def partition_data(dataset_name: str, num_clients: int, alpha: float, data_path: str = './data', **kwargs) -> Dict[str, Tuple[List[Subset], List[np.ndarray]]]:
     """
     Partition a dataset for federated learning.
     
@@ -142,6 +116,39 @@ def partition_data(dataset_name: str, num_clients: int, alpha: float, data_path:
         train_iter, test_iter = AG_NEWS(root=data_path, split=('train', 'test'))
         train_dataset = TextDataset(list(train_iter), tokenizer)
         test_dataset = TextDataset(list(test_iter), tokenizer)
+    elif dataset_name.lower() == 'ag_news_backdoor':
+        tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        train_iter, test_iter = AG_NEWS(root=data_path, split=('train', 'test'))
+        
+        # Create datasets without backdoor first
+        train_dataset = BackdooredTextDataset(list(train_iter), tokenizer)
+        test_dataset = BackdooredTextDataset(list(test_iter), tokenizer)
+
+        # Partition the data
+        train_data, train_idxs = dirichlet_partition(train_dataset, num_clients, alpha, train=True)
+        test_data, test_idxs = dirichlet_partition(test_dataset, num_clients, alpha, train=False)
+        backdoor_clients = kwargs.get('backdoor_clients', [])
+        backdoor_pattern = kwargs.get('backdoor_pattern', '')
+        backdoor_label = kwargs.get('backdoor_label', 1)
+        # Add backdoor to specified clients
+        for client_id in backdoor_clients:
+            # Create new backdoored datasets for the specified client
+            backdoored_train = BackdooredTextDataset(
+                [train_dataset.data[i] for i in train_idxs[client_id]], 
+                tokenizer, 
+                backdoor_pattern=backdoor_pattern, 
+                backdoor_label=backdoor_label
+            )
+            backdoored_test = BackdooredTextDataset(
+                [test_dataset.data[i] for i in test_idxs[client_id]], 
+                tokenizer, 
+                backdoor_pattern=backdoor_pattern, 
+                backdoor_label=backdoor_label
+            )
+            
+            # Replace the original datasets with backdoored ones
+            train_data[client_id] = backdoored_train
+            test_data[client_id] = backdoored_test
     else:
         raise ValueError("Unsupported dataset. Choose 'mnist', 'cifar10', 'cifar100', or 'ag_news'.")
 
@@ -171,9 +178,9 @@ def save_partition_indices(indices: List[np.ndarray], dataset_name: str, num_cli
         filename = os.path.join(directory, f"client{i}_{'train' if train else 'test'}.npy")
         np.save(filename, idx)
 
-def partition_main(dataset, alpha, num_clients):
+def partition_main(dataset, alpha, num_clients, **kwargs):
 
-    partitioned_data = partition_data(dataset, num_clients, alpha)
+    partitioned_data = partition_data(dataset, num_clients, alpha, **kwargs)
     
     train_data, train_idxs = partitioned_data['train']
     test_data, test_idxs = partitioned_data['test']
@@ -181,12 +188,19 @@ def partition_main(dataset, alpha, num_clients):
     save_partition_indices(train_idxs, dataset, num_clients, alpha, train=True)
     save_partition_indices(test_idxs, dataset, num_clients, alpha, train=False)
     
+    backdoor_clients = kwargs.get('backdoor_clients', [])
+    backdoor_pattern = kwargs.get('backdoor_pattern', '')
+    backdoor_label = kwargs.get('backdoor_label', 1)
+    
     print(f"\nDataset: {dataset}")
     print(f"Number of clients: {num_clients}")
     print(f"Dirichlet alpha: {alpha}")
+    print(f"Backdoored clients: {backdoor_clients}")
+    print(f"Backdoor pattern: '{backdoor_pattern}'")
+    print(f"Backdoor label: {backdoor_label}")
     print("Train data distribution:")
     for i, data in enumerate(train_data):
-        print(f"  Client {i}: {len(data)} samples")
+        print(f"  Client {i}: {len(data)} samples {'(backdoored)' if i in backdoor_clients else ''}")
     print("Test data distribution:")
     for i, data in enumerate(test_data):
-        print(f"  Client {i}: {len(data)} samples")
+        print(f"  Client {i}: {len(data)} samples {'(backdoored)' if i in backdoor_clients else ''}")
